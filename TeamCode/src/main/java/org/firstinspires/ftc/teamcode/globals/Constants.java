@@ -213,6 +213,9 @@ public final class Constants {
     /** Time from aim to ball leaving shooter, seconds. Robot keep moving this long. */
     public static double SOTM_LATENCY_S = 0.1;
 
+    /** Lead multiplier. More = aim further ahead. Raise if shots land behind motion. */
+    public static double SOTM_LEAD_GAIN = 1.5;
+
     /** Flywheel wheel diameter, inches. 72mm Rhino wheel, from CAD. */
     public static final double FLYWHEEL_DIAMETER_IN = 72 / 25.4;
 

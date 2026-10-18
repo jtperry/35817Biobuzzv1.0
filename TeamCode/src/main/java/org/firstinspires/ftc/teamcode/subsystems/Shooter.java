@@ -188,8 +188,8 @@ public class Shooter implements Mechanism {
             double aimY = goalY;
             for (int i = 0; i < 3; i++) {
                 double flightS = flightTimeS(Math.hypot(aimX - x, aimY - y));
-                aimX = goalX - velocity.vx * flightS;
-                aimY = goalY - velocity.vy * flightS;
+                aimX = goalX - velocity.vx * flightS * Constants.SOTM_LEAD_GAIN;
+                aimY = goalY - velocity.vy * flightS * Constants.SOTM_LEAD_GAIN;
             }
             goalX = aimX;
             goalY = aimY;
