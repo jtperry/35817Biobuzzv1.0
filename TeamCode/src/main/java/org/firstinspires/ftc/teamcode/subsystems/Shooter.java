@@ -50,12 +50,9 @@ public class Shooter implements Mechanism {
     private double turretOffsetDeg = 0;
     private double hoodOffset = 0;
 
-    /** Angle settle timer started for. Timer restart when turret drift past epsilon. */
-    private double settledTargetDeg = Constants.TURRET_CENTER_DEG;
-    private long lastTurretMoveMs = 0;
-
-    /** Time current move need. Big move = more time. */
-    private double settleDurationMs = 0;
+    /** Guess of real turret angle. Chase commanded at slew speed. Servo no report. */
+    private double estimatedTurretDeg = Constants.TURRET_CENTER_DEG;
+    private long lastEstimateNanos = 0;
 
     /** True: manualTurret() own turret. Tracking off. */
     private boolean manualOverride = false;
@@ -119,7 +116,8 @@ public class Shooter implements Mechanism {
         atSpeedDebouncer.calculate(false);
         flywheelClosedLoop = true;
         flywheelIntegral = 0;
-        settledTargetDeg = Constants.TURRET_CENTER_DEG;
+        estimatedTurretDeg = Constants.TURRET_CENTER_DEG;
+        lastEstimateNanos = 0;
         applyTurret(Constants.TURRET_CENTER_DEG);
         applyHood(Constants.HOOD_STOWED_POSITION);
         applyFlywheel();
@@ -132,6 +130,18 @@ public class Shooter implements Mechanism {
             flywheel.setThrottle(flywheelPower());
         }
         atSpeed = atSpeedDebouncer.calculate(withinRpmTolerance());
+        updateTurretEstimate();
+    }
+
+    /** Move turret guess toward commanded, max slew speed. */
+    private void updateTurretEstimate() {
+        long now = System.nanoTime();
+        // Cap. Slow loop no big jump.
+        double dt = lastEstimateNanos == 0 ? 0 : Math.min((now - lastEstimateNanos) / 1e9, 0.1);
+        lastEstimateNanos = now;
+        double maxStep = Constants.TURRET_SLEW_DEG_PER_SEC * dt;
+        double error = commandedTurretDeg - estimatedTurretDeg;
+        estimatedTurretDeg += Constants.clamp(error, -maxStep, maxStep);
     }
 
     @Override
@@ -225,9 +235,9 @@ public class Shooter implements Mechanism {
         return flywheel.getCurrent().into(Units.Amperes);
     }
 
-    /** Turret had time to arrive. Time guess only, servo no report. */
+    /** Guessed turret close to target. Tracking moving goal still count. */
     public boolean turretSettled() {
-        return System.currentTimeMillis() - lastTurretMoveMs >= settleDurationMs;
+        return Math.abs(commandedTurretDeg - estimatedTurretDeg) <= Constants.TURRET_SETTLE_TOLERANCE_DEG;
     }
 
     public boolean readyToShoot() {
@@ -411,14 +421,6 @@ public class Shooter implements Mechanism {
     // ---------------------------------------------------------------- hardware
 
     private void applyTurret(double degrees) {
-        // Compare to angle timer started for, not last call. autoAim() move tiny bit each loop.
-        double moveDeg = Math.abs(degrees - settledTargetDeg);
-        if (moveDeg >= Constants.TURRET_MOVE_EPSILON_DEG) {
-            settleDurationMs = Constants.TURRET_SETTLE_BASE_MS
-                    + moveDeg * Constants.TURRET_SETTLE_MS_PER_DEG;
-            settledTargetDeg = degrees;
-            lastTurretMoveMs = System.currentTimeMillis();
-        }
         commandedTurretDeg = degrees;
 
         double position = Constants.TURRET_CENTER_POSITION

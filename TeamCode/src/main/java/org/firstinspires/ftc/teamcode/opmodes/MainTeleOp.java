@@ -144,6 +144,7 @@ public class MainTeleOp extends NextOpMode {
         Telemetry.log("flywheel target / actual", robot.shooter.targetRpm() + " / " + robot.shooter.currentRpm());
         Telemetry.log("at speed", robot.shooter.atSpeed());
         Telemetry.log("ready to shoot", robot.shooter.readyToShoot());
+        Telemetry.log("turret settled", robot.shooter.turretSettled());
         Telemetry.log("gate open", robot.intake.isGateOpen());
         Telemetry.log("flower deployed", robot.intake.isFlowerDeployed());
     }

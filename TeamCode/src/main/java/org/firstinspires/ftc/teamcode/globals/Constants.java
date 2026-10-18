@@ -25,7 +25,7 @@ public final class Constants {
     public static double GOAL_A_Y = 86.4;
 
     /** Goal B spot, inches, BLUE alliance. Start = A mirrored across y = 72. */
-    public static double GOAL_B_X = 84.3;
+    public static double GOAL_B_X = 80.3;
     public static double GOAL_B_Y = 57.6;
 
     /** Teleop goal pick: robot must pass halfway line by this much to switch. Stop flicker. */
@@ -100,14 +100,11 @@ public final class Constants {
 
     // ---------------------------------------------------------------- turret timing
 
-    /** Base settle wait per turret move. */
-    public static double TURRET_SETTLE_BASE_MS = 60;
+    /** Turret turn speed, deg/sec. Used to guess where turret is. */
+    public static double TURRET_SLEW_DEG_PER_SEC = 500;
 
-    /** Extra settle wait per degree moved. */
-    public static double TURRET_SETTLE_MS_PER_DEG = 2.0;
-
-    /** Smaller move no restart settle timer. */
-    public static double TURRET_MOVE_EPSILON_DEG = 2.0;
+    /** Guessed turret within this of target = settled, ok to shoot. */
+    public static double TURRET_SETTLE_TOLERANCE_DEG = 3.0;
 
     /** manualTurret() deg per loop at full input. */
     public static double TURRET_TRIM_DEG_PER_LOOP = 1.5;
