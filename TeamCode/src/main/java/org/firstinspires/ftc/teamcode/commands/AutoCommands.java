@@ -4,6 +4,7 @@ import static com.pedropathing.ivy.groups.Groups.deadline;
 import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 import static com.pedropathing.ivy.pedro.PedroCommands.hold;
 
+import com.pedropathing.algorithm.ForesightConfig;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.commands.Commands;
 import com.pedropathing.paths.Path;
@@ -22,20 +23,21 @@ public final class AutoCommands {
         return Commands.instant(() -> robot.setGoal(goal));
     }
 
-    /** Path capped at max speed, inches/sec. Normal speed again after this path. */
-    public static Path slow(Path path, double maxSpeedInPerSec) {
-        return path.with(org.firstinspires.ftc.teamcode.pedro.Constants.foresightConfig
-                .maxPathSpeed.at(maxSpeedInPerSec));
+    /** Path capped at percent of top speed (0-100). Normal speed again after this path. */
+    public static Path slow(Path path, double speedPercent) {
+        ForesightConfig config = org.firstinspires.ftc.teamcode.pedro.Constants.foresightConfig;
+        double topSpeed = config.maxAchievableForwardVelocity.get();
+        return path.with(config.maxPathSpeed.at(topSpeed * speedPercent / 100.0));
     }
 
-    /** Drive path at max speed, inches/sec. Hold end pose. */
-    public static Command drive(Robot robot, Path path, double maxSpeedInPerSec) {
-        return drive(robot, slow(path, maxSpeedInPerSec));
+    /** Drive path at percent of top speed (0-100). Hold end pose. */
+    public static Command drive(Robot robot, Path path, double speedPercent) {
+        return drive(robot, slow(path, speedPercent));
     }
 
-    /** Drive + intake at max speed, inches/sec. Hold end pose. */
-    public static Command driveIntaking(Robot robot, Path path, double maxSpeedInPerSec) {
-        return driveIntaking(robot, slow(path, maxSpeedInPerSec));
+    /** Drive + intake at percent of top speed (0-100). Hold end pose. */
+    public static Command driveIntaking(Robot robot, Path path, double speedPercent) {
+        return driveIntaking(robot, slow(path, speedPercent));
     }
 
     /** Drive path. Hold end pose. */
