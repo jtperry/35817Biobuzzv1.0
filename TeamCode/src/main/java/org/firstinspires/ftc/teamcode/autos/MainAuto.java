@@ -64,13 +64,15 @@ public abstract class MainAuto extends NextOpMode {
 
     @Override
     public void disabledPeriodic() {
-        // Turret face goal before start.
+        // Goal on robot's side, like teleop. Turret face it before start.
+        robot.pickGoalBySide();
         robot.shooter.aimTurretAtGoal();
         pushTelemetry();
     }
 
     @Override
     public void periodic() {
+        robot.pickGoalBySide();
         pushTelemetry();
     }
 

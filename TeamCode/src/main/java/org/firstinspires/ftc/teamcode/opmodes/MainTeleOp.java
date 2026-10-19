@@ -45,9 +45,7 @@ public class MainTeleOp extends NextOpMode {
             robot.setGoal(Goal.A);
         }
         robot.initFollower(hardwareMap, robot.takeHandoffPose());
-        robot.reset();
-        // Flywheel stay at shoot speed whole match. Shot instant.
-        robot.shooter.arm();
+        // No reset here. Init no move servos. Reset in start().
 
         driver = new CommandGamepad(gamepad1);
         operator = new CommandGamepad(gamepad2);
@@ -86,10 +84,6 @@ public class MainTeleOp extends NextOpMode {
 
     @Override
     public void disabledPeriodic() {
-        // Turret face goal before start.
-        robot.pickGoalBySide();
-        robot.shooter.aimTurretAtGoal();
-
         // Triggers no poll in init. Read gamepad direct.
         // Only when no auto handoff.
         if (!fromAuto) {
@@ -104,6 +98,14 @@ public class MainTeleOp extends NextOpMode {
             Telemetry.log("alliance", robot.alliance() + "   (from auto)");
             Telemetry.log("start pose", "where auto ended");
         }
+    }
+
+    @Override
+    public void start() {
+        // Servos to known state now, after play.
+        robot.reset();
+        // Flywheel stay at shoot speed whole match. Shot instant.
+        robot.shooter.arm();
     }
 
     @Override
