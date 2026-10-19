@@ -12,24 +12,22 @@ public final class ShootCommands {
     private ShootCommands() {
     }
 
-    /** Spin up, wait ready, shoot one, idle. */
+    // Shots use intake only. Shooter keep aiming + flywheel on (default command, armed).
+
+    /** Wait ready, shoot one. */
     public static Command shootOne(Robot robot) {
-        return robot.shooter.spinUp()
-                .then(waitForShot(robot))
+        return waitForShot(robot)
                 .then(robot.intake.feed().raceWith(
                         Commands.waitMs(Constants.GATE_OPEN_DELAY_MS + Constants.FEED_TIME_MS)))
-                .then(robot.intake.stopFeed())
-                .then(robot.shooter.idleFlywheel());
+                .then(robot.intake.stopFeed());
     }
 
-    /** Spin up, wait ready, shoot all, idle. Flywheel held between artifacts. */
+    /** Wait ready, shoot all. */
     public static Command shootAll(Robot robot) {
-        return robot.shooter.spinUp()
-                .then(waitForShot(robot))
+        return waitForShot(robot)
                 .then(robot.intake.feed().raceWith(
                         Commands.waitMs(Constants.GATE_OPEN_DELAY_MS + Constants.VOLLEY_TIME_MS)))
-                .then(robot.intake.stopFeed())
-                .then(robot.shooter.idleFlywheel());
+                .then(robot.intake.stopFeed());
     }
 
     /** Hold to shoot. Wait flywheel ready, then feed till released. Shooter keep aiming. */

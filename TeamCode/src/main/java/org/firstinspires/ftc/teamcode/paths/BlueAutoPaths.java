@@ -12,7 +12,7 @@ public class BlueAutoPaths {
 
     private final PoseFactory poseFactory = PoseFactory.degrees();
 
-    private final Pose start = poseFactory.of(111.0017, 134.4568, 90);
+    private final Pose start = poseFactory.of(111.0017, 134.4568, 0);
     private final Pose path1Start = poseFactory.of(111.0017, 134.4568, 0);
     private final Pose path1 = poseFactory.of(133.5, 134.4568, 0);
     private final Pose point2 = poseFactory.of(94.9585, 23.2641, -134.6572);

@@ -7,6 +7,7 @@ import com.pedropathing.ivy.Command;
 import com.pedropathing.math.Pose;
 
 import org.firstinspires.ftc.teamcode.commands.AutoCommands;
+import org.firstinspires.ftc.teamcode.commands.ShootCommands;
 import org.firstinspires.ftc.teamcode.globals.Alliance;
 import org.firstinspires.ftc.teamcode.globals.Robot;
 
@@ -36,18 +37,20 @@ public abstract class MainAuto extends NextOpMode {
         // Start pose = export "start" pose.
         ready = robot.beginAuto(hardwareMap, alliance, StartPose.of(route));
         robot.reset();
-        robot.shooter.aim();
+        // Like teleop: flywheel at table speed whole auto. Turret aim by default command.
+        robot.shooter.arm();
     }
 
     /** Auto routine. Add actions between drives. */
     private Command routine() {
         return sequential(
-                AutoCommands.drive(robot, route.path1()),
+                AutoCommands.driveIntaking(robot, route.path1()),
                 AutoCommands.drive(robot, route.path2()),
-                AutoCommands.drive(robot, route.path3()),
+                AutoCommands.driveIntaking(robot, route.path3()),
                 AutoCommands.drive(robot, route.path4()),
+                ShootCommands.shootAll(robot),
                 AutoCommands.drive(robot, route.path5()),
-                AutoCommands.drive(robot, route.path6()),
+                AutoCommands.driveIntaking(robot, route.path6()),
                 AutoCommands.drive(robot, route.path7()),
                 AutoCommands.drive(robot, route.path8()));
     }

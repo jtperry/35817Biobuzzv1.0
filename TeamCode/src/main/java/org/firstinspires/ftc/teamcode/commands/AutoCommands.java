@@ -29,22 +29,14 @@ public final class AutoCommands {
                 .then(hold(robot.follower(), path.endPose()));
     }
 
-    /** Drive to shoot spot. Spin flywheel + aim while driving. Hold end pose. */
-    public static Command driveAiming(Robot robot, Path path) {
-        return robot.shooter.spinUp()
-                .then(deadline(
-                        follow(robot.follower(), path),
-                        robot.shooter.autoAim()))
-                // endPose, not hold(follower): that one grab start pose.
-                .then(hold(robot.follower(), path.endPose()));
-    }
+    // Never use shooter here. Sequence hold its mechanisms whole time,
+    // shooter default (aim + flywheel) would stop for all of auto.
 
-    /** Drive + intake + aim. Stop rollers, hold end pose. */
+    /** Drive + intake. Stop rollers, hold end pose. */
     public static Command driveIntaking(Robot robot, Path path) {
         return deadline(
                 follow(robot.follower(), path),
-                robot.intake.intake(),
-                robot.shooter.autoAim())
+                robot.intake.intake())
                 .then(robot.intake.stopIntake())
                 // endPose, not hold(follower): that one grab start pose.
                 .then(hold(robot.follower(), path.endPose()));
