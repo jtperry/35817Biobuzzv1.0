@@ -182,10 +182,10 @@ public final class Constants {
     public static double STAGE2_INTAKE_POWER = -0.5;
 
     /** Feeding: stage 1 toward shooter. Lower = slower shots. */
-    public static double STAGE1_FEED_POWER = 0.9;
+    public static double STAGE1_FEED_POWER = 0.7;
 
     /** Feeding: stage 2 toward shooter. Lower = slower shots. */
-    public static double STAGE2_FEED_POWER = 0.9;
+    public static double STAGE2_FEED_POWER = 1.0;
 
     /** Eject: both stages away from shooter. */
     public static double EJECT_POWER = -1.0;
@@ -245,24 +245,26 @@ public final class Constants {
 
     static {
         // Placeholders. Replace when tuning.
-        DISTANCE_TO_RPM.put(28.6, 3000.0);
-        DISTANCE_TO_RPM.put(36.4, 3000.0);
-        DISTANCE_TO_RPM.put(42.9, 3000.0);
-        DISTANCE_TO_RPM.put(46.6, 3100.0);
-        DISTANCE_TO_RPM.put(55.4, 3200.0);
-        DISTANCE_TO_RPM.put(59.0, 3200.0);
-        DISTANCE_TO_RPM.put(62.4, 3300.0);
-        DISTANCE_TO_RPM.put(70.5, 3500.0);
-        DISTANCE_TO_RPM.put(75.5, 3700.0);
+        DISTANCE_TO_RPM.put(20.7, 2900.0);
+        DISTANCE_TO_RPM.put(34.9, 3000.0);
+        DISTANCE_TO_RPM.put(42.5, 3000.0);
+        DISTANCE_TO_RPM.put(51.3, 3000.0);
+        DISTANCE_TO_RPM.put(55.1, 3200.0);
+        DISTANCE_TO_RPM.put(60.7, 3200.0);
+        DISTANCE_TO_RPM.put(64.7, 3250.0);
+        DISTANCE_TO_RPM.put(70.2, 3300.0);
+        DISTANCE_TO_RPM.put(91.1, 3500.0);
 
-        DISTANCE_TO_HOOD.put(28.6, 0.01);
-        DISTANCE_TO_HOOD.put(36.4, 0.13);
-        DISTANCE_TO_HOOD.put(42.9, 0.18);
-        DISTANCE_TO_HOOD.put(46.6, 0.33);
-        DISTANCE_TO_HOOD.put(55.4, 0.41);
-        DISTANCE_TO_HOOD.put(59.0, 0.37);
-        DISTANCE_TO_HOOD.put(62.4, 0.40);
-        DISTANCE_TO_HOOD.put(70.5, 0.45);
+        DISTANCE_TO_HOOD.put(20.7, 0.03);
+        DISTANCE_TO_HOOD.put(34.9, 0.2);
+        DISTANCE_TO_HOOD.put(42.5, 0.22);
+        DISTANCE_TO_HOOD.put(51.3, 0.31);
+        DISTANCE_TO_HOOD.put(55.1, 0.35);
+        DISTANCE_TO_HOOD.put(60.7, 0.41);
+        DISTANCE_TO_HOOD.put(64.7, 0.42);
+        DISTANCE_TO_HOOD.put(70.2, 0.45);
+        DISTANCE_TO_HOOD.put(91.1, 0.45);
+
     }
 
     // ---------------------------------------------------------------- helpers

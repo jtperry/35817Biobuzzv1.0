@@ -58,7 +58,10 @@ public abstract class MainAuto extends NextOpMode {
                 AutoCommands.driveIntaking(robot, route.path4()),
                 robot.intake.intake(),
                 Commands.waitMs(500),
-                AutoCommands.drive(robot, route.path5()));
+                AutoCommands.drive(robot, route.path5()),
+                AutoCommands.drive(robot, route.path6()),
+                AutoCommands.drive(robot, route.path7()),
+                AutoCommands.drive(robot, route.path8()));
     }
 
     @Override

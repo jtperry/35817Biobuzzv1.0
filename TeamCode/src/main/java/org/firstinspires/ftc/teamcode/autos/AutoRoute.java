@@ -19,6 +19,12 @@ public interface AutoRoute {
 
     Path path5();
 
+    Path path6();
+
+    Path path7();
+
+    Path path8();
+
     // Adapters. Inherit export methods. Renamed path = compile error here.
     final class Red extends RedAutoPaths implements AutoRoute {
     }
