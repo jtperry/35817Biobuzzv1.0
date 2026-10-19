@@ -34,6 +34,9 @@ public class IntakeTransfer implements Mechanism {
         flowerLeft = new NextServo("flowerLeft");
         flowerRight = new NextServo("flowerRight");
         flowerRight.setDirection(NextMotor.Direction.REVERSE);
+        // SDK reset range each OpMode. Set again here.
+        flowerLeft.setPwmRange(Constants.FLOWER_SERVO_PWM_MIN_US, Constants.FLOWER_SERVO_PWM_MAX_US);
+        flowerRight.setPwmRange(Constants.FLOWER_SERVO_PWM_MIN_US, Constants.FLOWER_SERVO_PWM_MAX_US);
     }
 
     // ---------------------------------------------------------------- lifecycle

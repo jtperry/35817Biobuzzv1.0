@@ -164,6 +164,10 @@ public final class Constants {
 
     // ---------------------------------------------------------------- flower arm
 
+    /** Flower servo pulse range, us. */
+    public static final double FLOWER_SERVO_PWM_MIN_US = 500;
+    public static final double FLOWER_SERVO_PWM_MAX_US = 2500;
+
     public static double FLOWER_STOWED_POSITION = 0.1;
     public static double FLOWER_DEPLOYED_POSITION = 0.8;
 
