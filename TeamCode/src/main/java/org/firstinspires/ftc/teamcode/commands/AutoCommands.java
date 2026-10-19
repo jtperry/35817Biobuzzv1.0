@@ -22,6 +22,22 @@ public final class AutoCommands {
         return Commands.instant(() -> robot.setGoal(goal));
     }
 
+    /** Path capped at max speed, inches/sec. Normal speed again after this path. */
+    public static Path slow(Path path, double maxSpeedInPerSec) {
+        return path.with(org.firstinspires.ftc.teamcode.pedro.Constants.foresightConfig
+                .maxPathSpeed.at(maxSpeedInPerSec));
+    }
+
+    /** Drive path at max speed, inches/sec. Hold end pose. */
+    public static Command drive(Robot robot, Path path, double maxSpeedInPerSec) {
+        return drive(robot, slow(path, maxSpeedInPerSec));
+    }
+
+    /** Drive + intake at max speed, inches/sec. Hold end pose. */
+    public static Command driveIntaking(Robot robot, Path path, double maxSpeedInPerSec) {
+        return driveIntaking(robot, slow(path, maxSpeedInPerSec));
+    }
+
     /** Drive path. Hold end pose. */
     public static Command drive(Robot robot, Path path) {
         return follow(robot.follower(), path)
