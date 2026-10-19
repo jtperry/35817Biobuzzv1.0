@@ -86,6 +86,10 @@ public class MainTeleOp extends NextOpMode {
 
     @Override
     public void disabledPeriodic() {
+        // Turret face goal before start.
+        robot.pickGoalBySide();
+        robot.shooter.aimTurretAtGoal();
+
         // Triggers no poll in init. Read gamepad direct.
         // Only when no auto handoff.
         if (!fromAuto) {

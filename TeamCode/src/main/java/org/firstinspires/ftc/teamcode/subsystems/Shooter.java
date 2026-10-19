@@ -285,6 +285,12 @@ public class Shooter implements Mechanism {
         applyFlywheel();
     }
 
+    /** Init aim. Turret point at goal, no command, flywheel untouched. Call each init loop. */
+    public void aimTurretAtGoal() {
+        applyTurret(Constants.clamp(bearingToGoal() + turretOffsetDeg,
+                Constants.turretMinDeg(), Constants.turretMaxDeg()));
+    }
+
     /** Shot tuning. Turret aim at goal. RPM + hood from suppliers, not tables. */
     public Command tuneShot(DoubleSupplier rpm, DoubleSupplier hoodPosition) {
         return infinite(() -> {

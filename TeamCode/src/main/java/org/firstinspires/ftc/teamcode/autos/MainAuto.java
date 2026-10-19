@@ -64,6 +64,8 @@ public abstract class MainAuto extends NextOpMode {
 
     @Override
     public void disabledPeriodic() {
+        // Turret face goal before start.
+        robot.shooter.aimTurretAtGoal();
         pushTelemetry();
     }
 
