@@ -43,6 +43,8 @@ public class Robot implements NextRobot {
 
     /** Build Pedro follower, set start pose. Take OpMode hardwareMap. */
     public void initFollower(HardwareMap hardwareMap, Pose startPose) {
+        // Full power. Old limit from stopped auto no carry over.
+        org.firstinspires.ftc.teamcode.pedro.LimitedMecanum.maxPower = 1.0;
         follower = org.firstinspires.ftc.teamcode.pedro.Constants.create(hardwareMap);
         if (follower != null) {
             follower.setPose(startPose);

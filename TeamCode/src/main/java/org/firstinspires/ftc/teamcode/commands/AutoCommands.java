@@ -4,13 +4,14 @@ import static com.pedropathing.ivy.groups.Groups.deadline;
 import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 import static com.pedropathing.ivy.pedro.PedroCommands.hold;
 
-import com.pedropathing.algorithm.ForesightConfig;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.commands.Commands;
 import com.pedropathing.paths.Path;
 
+import org.firstinspires.ftc.teamcode.globals.Constants;
 import org.firstinspires.ftc.teamcode.globals.Goal;
 import org.firstinspires.ftc.teamcode.globals.Robot;
+import org.firstinspires.ftc.teamcode.pedro.LimitedMecanum;
 
 /** Auto drive steps. */
 public final class AutoCommands {
@@ -23,21 +24,28 @@ public final class AutoCommands {
         return Commands.instant(() -> robot.setGoal(goal));
     }
 
-    /** Path capped at percent of top speed (0-100). Normal speed again after this path. */
-    public static Path slow(Path path, double speedPercent) {
-        ForesightConfig config = org.firstinspires.ftc.teamcode.pedro.Constants.foresightConfig;
-        double topSpeed = config.maxAchievableForwardVelocity.get();
-        return path.with(config.maxPathSpeed.at(topSpeed * speedPercent / 100.0));
+    /** Drive path at percent of full power (0-100). Full power again after. Hold end pose. */
+    public static Command drive(Robot robot, Path path, double powerPercent) {
+        return limitPower(powerPercent)
+                .then(drive(robot, path))
+                .then(limitPower(100));
     }
 
-    /** Drive path at percent of top speed (0-100). Hold end pose. */
-    public static Command drive(Robot robot, Path path, double speedPercent) {
-        return drive(robot, slow(path, speedPercent));
+    /** Drive + intake at percent of full power (0-100). Full power again after. Hold end pose. */
+    public static Command driveIntaking(Robot robot, Path path, double powerPercent) {
+        return limitPower(powerPercent)
+                .then(driveIntaking(robot, path))
+                .then(limitPower(100));
     }
 
-    /** Drive + intake at percent of top speed (0-100). Hold end pose. */
-    public static Command driveIntaking(Robot robot, Path path, double speedPercent) {
-        return driveIntaking(robot, slow(path, speedPercent));
+    /** Run intake this long, then stop rollers. */
+    public static Command intakeFor(Robot robot, double ms) {
+        return robot.intake.intake().raceWith(Commands.waitMs(ms))
+                .then(robot.intake.stopIntake());
+    }
+
+    private static Command limitPower(double percent) {
+        return Commands.instant(() -> LimitedMecanum.maxPower = Constants.clamp(percent / 100.0, 0, 1));
     }
 
     /** Drive path. Hold end pose. */
