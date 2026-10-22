@@ -142,6 +142,12 @@ public final class Constants {
     public static double FLYWHEEL_KS = 0.0;
     public static double FLYWHEEL_KV = 1.0 / 6000.0;
 
+    /** Battery voltage flywheel gains tuned at. Power scaled by NOMINAL / now. */
+    public static double NOMINAL_VOLTAGE = 12.0;
+
+    /** Read battery this often, ms. Each read slow down loop a bit. */
+    public static double VOLTAGE_READ_MS = 100;
+
     /** RPM error bigger than this = bang-bang (full power or off). Smaller = PIDF. */
     public static double FLYWHEEL_BANG_BANG_ERROR_RPM = 100;
 

@@ -32,6 +32,7 @@ public class Shooter implements Mechanism {
     private final Supplier<Alliance> allianceSupplier;
     private final Supplier<Goal> goalSupplier;
     private final Supplier<Velocity> velocitySupplier;
+    private final DoubleSupplier voltageSupplier;
 
     private final Debouncer atSpeedDebouncer =
             new Debouncer(Constants.AT_SPEED_DEBOUNCE_SECONDS, Debouncer.DebounceType.RISING);
@@ -68,11 +69,13 @@ public class Shooter implements Mechanism {
     private long lastFlywheelNanos = 0;
 
     public Shooter(Supplier<Pose> poseSupplier, Supplier<Alliance> allianceSupplier,
-                   Supplier<Goal> goalSupplier, Supplier<Velocity> velocitySupplier) {
+                   Supplier<Goal> goalSupplier, Supplier<Velocity> velocitySupplier,
+                   DoubleSupplier voltageSupplier) {
         this.poseSupplier = poseSupplier;
         this.allianceSupplier = allianceSupplier;
         this.goalSupplier = goalSupplier;
         this.velocitySupplier = velocitySupplier;
+        this.voltageSupplier = voltageSupplier;
         bindServos();
         applyTuning();
     }
@@ -475,6 +478,9 @@ public class Shooter implements Mechanism {
                 + Constants.FLYWHEEL_KP * error
                 + Constants.FLYWHEEL_KI * flywheelIntegral
                 + Constants.FLYWHEEL_KD * derivative;
+        // Voltage comp. Low battery = more power for same speed.
+        double volts = Math.max(voltageSupplier.getAsDouble(), 6.0);
+        power *= Constants.NOMINAL_VOLTAGE / volts;
         return Constants.clamp(power, 0, 1);
     }
 

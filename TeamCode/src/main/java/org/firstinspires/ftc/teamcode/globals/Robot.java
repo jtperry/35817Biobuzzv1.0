@@ -5,6 +5,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.math.Pose;
 import com.pedropathing.math.Velocity;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.subsystems.IntakeTransfer;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
@@ -21,7 +22,12 @@ import dev.nextftc.robot.NextRobot;
 public class Robot implements NextRobot {
 
     public final IntakeTransfer intake = new IntakeTransfer();
-    public final Shooter shooter = new Shooter(this::pose, this::alliance, this::goal, this::velocity);
+    public final Shooter shooter = new Shooter(
+            this::pose, this::alliance, this::goal, this::velocity, this::batteryVoltage);
+
+    private VoltageSensor voltageSensor;
+    private double lastVoltage = Constants.NOMINAL_VOLTAGE;
+    private long lastVoltageReadMs = 0;
 
     private Follower follower;
 
@@ -43,6 +49,9 @@ public class Robot implements NextRobot {
 
     /** Build Pedro follower, set start pose. Take OpMode hardwareMap. */
     public void initFollower(HardwareMap hardwareMap, Pose startPose) {
+        voltageSensor = hardwareMap.voltageSensor.iterator().hasNext()
+                ? hardwareMap.voltageSensor.iterator().next() : null;
+        lastVoltageReadMs = 0;
         // Full power. Old limit from stopped auto no carry over.
         org.firstinspires.ftc.teamcode.pedro.LimitedMecanum.maxPower = 1.0;
         follower = org.firstinspires.ftc.teamcode.pedro.Constants.create(hardwareMap);
@@ -157,6 +166,20 @@ public class Robot implements NextRobot {
     /** Robot pose now. Default if no follower. */
     public Pose pose() {
         return follower == null ? Constants.DEFAULT_START_POSE : follower.pose();
+    }
+
+    /** Battery volts. Read every VOLTAGE_READ_MS, else last value. No sensor = nominal. */
+    public double batteryVoltage() {
+        long now = System.currentTimeMillis();
+        if (voltageSensor != null && now - lastVoltageReadMs >= Constants.VOLTAGE_READ_MS) {
+            double volts = voltageSensor.getVoltage();
+            // Bad read (0 or junk) keep old value.
+            if (volts > 1.0) {
+                lastVoltage = volts;
+            }
+            lastVoltageReadMs = now;
+        }
+        return lastVoltage;
     }
 
     /** Robot velocity, field frame. Zero if no follower. */
