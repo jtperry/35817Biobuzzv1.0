@@ -135,15 +135,19 @@ public final class Constants {
     /** Flywheel encoder ticks per rev. */
     public static double FLYWHEEL_TICKS_PER_REV = 28.0;
 
-    /** Flywheel velocity gains. */
-    public static double FLYWHEEL_KP = 0.004;
-    public static double FLYWHEEL_KI = 0.0;
-    public static double FLYWHEEL_KD = 0.0;
-    public static double FLYWHEEL_KS = 0.0;
-    public static double FLYWHEEL_KV = 1.0 / 6000.0;
+    // Flywheel gains, in VOLTS. Power = volts / battery voltage.
+    // kS + kV: run Flywheel Tuner, copy numbers here.
 
-    /** Battery voltage flywheel gains tuned at. Power scaled by NOMINAL / now. */
-    public static double NOMINAL_VOLTAGE = 12.0;
+    /** Volts to beat friction. */
+    public static double FLYWHEEL_KS_VOLTS = 0.0;
+
+    /** Volts per RPM. Old 1/6000 power at 13 V. */
+    public static double FLYWHEEL_KV_VOLTS_PER_RPM = 13.0 / 6000.0;
+
+    /** Volts per RPM of error. Old 0.003 power at 13 V. */
+    public static double FLYWHEEL_KP_VOLTS = 0.039;
+    public static double FLYWHEEL_KI_VOLTS = 0.0;
+    public static double FLYWHEEL_KD_VOLTS = 0.0;
 
     /** Read battery this often, ms. Each read slow down loop a bit. */
     public static double VOLTAGE_READ_MS = 100;

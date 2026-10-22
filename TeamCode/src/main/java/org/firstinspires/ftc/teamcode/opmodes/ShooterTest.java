@@ -146,11 +146,13 @@ public class ShooterTest extends NextOpMode {
         Telemetry.log("applied throttle", String.format("%.2f", robot.shooter.flywheelThrottle()));
         Telemetry.log("measured RPM", String.format("%.0f", rpm));
         Telemetry.log("current (A)", String.format("%.2f", robot.shooter.flywheelCurrentAmps()));
-        // Implied kV: let RPM settle, put in FLYWHEEL_KV.
+        // Rough kV, kS taken as 0. Flywheel Tuner more exact.
+        Telemetry.log("battery (V)", String.format("%.2f", robot.batteryVoltage()));
         if (Math.abs(rpm) > 1) {
-            Telemetry.log("implied kV (power/RPM)", String.format("%.8f", power / rpm));
+            Telemetry.log("implied kV (V/RPM)",
+                    String.format("%.6f", power * robot.batteryVoltage() / rpm));
         } else {
-            Telemetry.log("implied kV (power/RPM)", "waiting for RPM");
+            Telemetry.log("implied kV (V/RPM)", "waiting for RPM");
         }
         Telemetry.log("rpm", rpm);
         Telemetry.log("ticks per rev in use", Constants.FLYWHEEL_TICKS_PER_REV);

@@ -473,15 +473,14 @@ public class Shooter implements Mechanism {
         double derivative = dt > 0 ? (error - lastFlywheelError) / dt : 0;
         lastFlywheelError = error;
 
-        double power = Constants.FLYWHEEL_KS
-                + Constants.FLYWHEEL_KV * targetRpm
-                + Constants.FLYWHEEL_KP * error
-                + Constants.FLYWHEEL_KI * flywheelIntegral
-                + Constants.FLYWHEEL_KD * derivative;
-        // Voltage comp. Low battery = more power for same speed.
-        double volts = Math.max(voltageSupplier.getAsDouble(), 6.0);
-        power *= Constants.NOMINAL_VOLTAGE / volts;
-        return Constants.clamp(power, 0, 1);
+        // Volts motor need. Power = volts / battery. Low battery = more power, same speed.
+        double volts = Constants.FLYWHEEL_KS_VOLTS
+                + Constants.FLYWHEEL_KV_VOLTS_PER_RPM * targetRpm
+                + Constants.FLYWHEEL_KP_VOLTS * error
+                + Constants.FLYWHEEL_KI_VOLTS * flywheelIntegral
+                + Constants.FLYWHEEL_KD_VOLTS * derivative;
+        double battery = Math.max(voltageSupplier.getAsDouble(), 6.0);
+        return Constants.clamp(volts / battery, 0, 1);
     }
 
     private void applyHood(double position) {

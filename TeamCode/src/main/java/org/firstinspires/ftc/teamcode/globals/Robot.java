@@ -26,7 +26,8 @@ public class Robot implements NextRobot {
             this::pose, this::alliance, this::goal, this::velocity, this::batteryVoltage);
 
     private VoltageSensor voltageSensor;
-    private double lastVoltage = Constants.NOMINAL_VOLTAGE;
+    /** Last battery read. 12 till first read. */
+    private double lastVoltage = 12.0;
     private long lastVoltageReadMs = 0;
 
     private Follower follower;
