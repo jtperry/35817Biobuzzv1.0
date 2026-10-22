@@ -461,11 +461,12 @@ public class Shooter implements Mechanism {
 
         double error = targetRpm - currentRpm();
 
-        // Bang-bang: too slow = full power, too fast = off.
-        if (Math.abs(error) > Constants.FLYWHEEL_BANG_BANG_ERROR_RPM) {
+        // Bang-bang only for spin-up: far below = full power.
+        // Above target, no power cut. PIDF ease it down, no bounce.
+        if (error > Constants.FLYWHEEL_BANG_BANG_ERROR_RPM) {
             flywheelIntegral = 0;
             lastFlywheelError = error;
-            return error > 0 ? 1.0 : 0.0;
+            return 1.0;
         }
 
         // PIDF: hold speed.
