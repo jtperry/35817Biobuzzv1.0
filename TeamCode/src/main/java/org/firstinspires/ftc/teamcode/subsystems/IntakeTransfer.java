@@ -24,6 +24,12 @@ public class IntakeTransfer implements Mechanism {
     private boolean gateOpen = false;
     private boolean flowerDeployed = false;
 
+    /** Where flower arm should end up. */
+    private double flowerTarget = Constants.FLOWER_STOWED_POSITION;
+    /** Position actually sent to servos. NaN = nothing sent yet, jump straight to target. */
+    private double flowerCommanded = Double.NaN;
+    private long lastFlowerNanos = 0;
+
     public IntakeTransfer() {
         bindServos();
     }
@@ -37,9 +43,31 @@ public class IntakeTransfer implements Mechanism {
         // SDK reset range each OpMode. Set again here.
         flowerLeft.setPwmRange(Constants.FLOWER_SERVO_PWM_MIN_US, Constants.FLOWER_SERVO_PWM_MAX_US);
         flowerRight.setPwmRange(Constants.FLOWER_SERVO_PWM_MIN_US, Constants.FLOWER_SERVO_PWM_MAX_US);
+        // New OpMode. Position unknown, first periodic() snaps to target.
+        flowerCommanded = Double.NaN;
+        lastFlowerNanos = 0;
     }
 
     // ---------------------------------------------------------------- lifecycle
+
+    /** Walk flower servos toward target at FLOWER_SPEED_POS_PER_SEC. Runs every loop. */
+    @Override
+    public void periodic() {
+        long now = System.nanoTime();
+        double dt = lastFlowerNanos == 0 ? 0 : (now - lastFlowerNanos) / 1e9;
+        lastFlowerNanos = now;
+
+        double speed = Constants.FLOWER_SPEED_POS_PER_SEC;
+        if (Double.isNaN(flowerCommanded) || speed <= 0) {
+            flowerCommanded = flowerTarget;
+        } else {
+            double maxStep = speed * dt;
+            double error = flowerTarget - flowerCommanded;
+            flowerCommanded += Constants.clamp(error, -maxStep, maxStep);
+        }
+        flowerLeft.setPosition(flowerCommanded);
+        flowerRight.setPosition(flowerCommanded);
+    }
 
     /** Known state. Motors off, gate closed, arm stowed. Flags match hardware. */
     public void reset() {
@@ -107,10 +135,8 @@ public class IntakeTransfer implements Mechanism {
                 gate.setPosition(Constants.clamp(gatePosition.getAsDouble(), 0, 1));
             }
             if (flowerPosition != null) {
-                double flower = Constants.clamp(flowerPosition.getAsDouble(), 0, 1);
-                // flowerRight reversed in bindServos(). Both get same position.
-                flowerLeft.setPosition(flower);
-                flowerRight.setPosition(flower);
+                // Slew-limited in periodic().
+                flowerTarget = Constants.clamp(flowerPosition.getAsDouble(), 0, 1);
             }
         });
     }
@@ -213,8 +239,7 @@ public class IntakeTransfer implements Mechanism {
                 ? Constants.FLOWER_DEPLOYED_POSITION
                 : Constants.FLOWER_STOWED_POSITION;
 
-        // flowerRight reversed in bindServos(). Both get same position.
-        flowerLeft.setPosition(position);
-        flowerRight.setPosition(position);
+        // Slew-limited in periodic(). flowerRight reversed in bindServos().
+        flowerTarget = position;
     }
 }

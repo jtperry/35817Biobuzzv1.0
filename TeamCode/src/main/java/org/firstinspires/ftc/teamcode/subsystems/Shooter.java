@@ -7,6 +7,9 @@ import com.pedropathing.math.Velocity;
 import org.firstinspires.ftc.teamcode.globals.Alliance;
 import org.firstinspires.ftc.teamcode.globals.Constants;
 import org.firstinspires.ftc.teamcode.globals.Goal;
+import org.firstinspires.ftc.teamcode.pedro.SharedOctoQuadLocalizer;
+
+import com.qualcomm.hardware.digitalchickenlabs.OctoQuad;
 
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
@@ -64,6 +67,13 @@ public class Shooter implements Mechanism {
     /** True: periodic() drive flywheel to targetRpm. False: raw power from test. */
     private boolean flywheelClosedLoop = true;
 
+    /** OctoQuad localizer. Flywheel encoder come in same read. Null = use motor port. */
+    private SharedOctoQuadLocalizer octoQuadEncoders;
+    private int appliedOctoPort = -1;
+    private int appliedOctoIntervalMs = -1;
+    private boolean appliedOctoReversed = false;
+    private double lastOctoRpm = 0;
+
     private double flywheelIntegral = 0;
     private double lastFlywheelError = 0;
     private long lastFlywheelNanos = 0;
@@ -82,6 +92,8 @@ public class Shooter implements Mechanism {
 
     /** Make fresh hood + turret servos. Call every OpMode start. */
     public void bindServos() {
+        // Old OpMode OctoQuad dead. initFollower() give new one.
+        octoQuadEncoders = null;
         hood = new NextServo("hood");
         turretLeft = new NextServo("turretLeft");
         turretRight = new NextServo("turretRight");
@@ -104,6 +116,31 @@ public class Shooter implements Mechanism {
         }
 
         atSpeedDebouncer.setDebounceTimeSeconds(Constants.AT_SPEED_DEBOUNCE_SECONDS);
+
+        // OctoQuad port setup. Write only on change, I2C slow.
+        if (octoQuadEncoders != null && Constants.FLYWHEEL_ENCODER_ON_OCTOQUAD) {
+            int port = (int) Constants.clamp(Constants.FLYWHEEL_OCTOQUAD_PORT, OctoQuad.ENCODER_FIRST, OctoQuad.ENCODER_LAST);
+            int interval = (int) Constants.clamp(Constants.FLYWHEEL_VELOCITY_INTERVAL_MS,
+                    OctoQuad.MIN_VELOCITY_MEASUREMENT_INTERVAL_MS, OctoQuad.MAX_VELOCITY_MEASUREMENT_INTERVAL_MS);
+            boolean reversed = Constants.FLYWHEEL_OCTOQUAD_REVERSED;
+            if (port != appliedOctoPort || interval != appliedOctoIntervalMs || reversed != appliedOctoReversed) {
+                octoQuadEncoders.octoQuad.setSingleEncoderDirection(port,
+                        reversed ? OctoQuad.EncoderDirection.REVERSE : OctoQuad.EncoderDirection.FORWARD);
+                octoQuadEncoders.octoQuad.setSingleVelocitySampleInterval(port, interval);
+                appliedOctoPort = port;
+                appliedOctoIntervalMs = interval;
+                appliedOctoReversed = reversed;
+            }
+        }
+    }
+
+    /** Read flywheel encoder from OctoQuad. Call each OpMode after follower made. */
+    public void useOctoQuad(SharedOctoQuadLocalizer localizer) {
+        octoQuadEncoders = localizer;
+        // Force port setup on new device.
+        appliedOctoPort = -1;
+        lastOctoRpm = 0;
+        applyTuning();
     }
 
     // ---------------------------------------------------------------- lifecycle
@@ -205,6 +242,16 @@ public class Shooter implements Mechanism {
     }
 
     public double currentRpm() {
+        if (octoQuadEncoders != null && Constants.FLYWHEEL_ENCODER_ON_OCTOQUAD && appliedOctoPort >= 0) {
+            OctoQuad.EncoderDataBlock data = octoQuadEncoders.encoderData();
+            // Bad read keep last value.
+            if (data.crcOk) {
+                // Velocity = ticks per window.
+                double ticksPerSec = data.velocities[appliedOctoPort] * (1000.0 / appliedOctoIntervalMs);
+                lastOctoRpm = ticksPerSec / Constants.FLYWHEEL_TICKS_PER_REV * 60.0;
+            }
+            return lastOctoRpm;
+        }
         return flywheel.getEncoderVelocity().into(Units.RotationsPerMinute);
     }
 
@@ -276,29 +323,55 @@ public class Shooter implements Mechanism {
 
         // Manual override take turret only. Hood keep tracking.
         if (!manualOverride) {
-            applyTurret(Constants.clamp(bearingToGoal() + turretOffsetDeg,
-                    Constants.turretMinDeg(), Constants.turretMaxDeg()));
+            applyTurret(aimAngle(bearingToGoal() + turretOffsetDeg));
         }
         applyHood(Constants.clamp(
                 lookUp(Constants.DISTANCE_TO_HOOD, distance, commandedHoodPosition) + hoodOffset,
                 Constants.HOOD_MIN_POSITION, Constants.HOOD_MAX_POSITION));
         if (armed) {
-            targetRpm = lookUp(Constants.DISTANCE_TO_RPM, distance, targetRpm);
+            targetRpm = tableRpm(distance, targetRpm);
         }
         applyFlywheel();
     }
 
+    /**
+     * Turret angle for a direction. Back of robot reachable two ways (travel past 360).
+     * Pick way closest to where turret now. Small robot turn no flip to other side.
+     */
+    private double aimAngle(double degrees) {
+        double min = Constants.turretMinDeg();
+        double max = Constants.turretMaxDeg();
+        double best = Double.NaN;
+        for (int k = -1; k <= 1; k++) {
+            double candidate = degrees + 360.0 * k;
+            if (candidate >= min && candidate <= max
+                    && (Double.isNaN(best)
+                    || Math.abs(candidate - commandedTurretDeg) < Math.abs(best - commandedTurretDeg))) {
+                best = candidate;
+            }
+        }
+        // Small way past limit on current side: wait at limit, no swing to other side.
+        for (int k = -1; k <= 1; k++) {
+            double candidate = degrees + 360.0 * k;
+            boolean pastMax = candidate > max && candidate <= max + Constants.TURRET_WRAP_HYSTERESIS_DEG;
+            boolean pastMin = candidate < min && candidate >= min - Constants.TURRET_WRAP_HYSTERESIS_DEG;
+            if ((pastMax && commandedTurretDeg > 0) || (pastMin && commandedTurretDeg < 0)) {
+                return Constants.clamp(candidate, min, max);
+            }
+        }
+        // No way in range: nearest limit.
+        return Double.isNaN(best) ? Constants.clamp(degrees, min, max) : best;
+    }
+
     /** Init aim. Turret point at goal, no command, flywheel untouched. Call each init loop. */
     public void aimTurretAtGoal() {
-        applyTurret(Constants.clamp(bearingToGoal() + turretOffsetDeg,
-                Constants.turretMinDeg(), Constants.turretMaxDeg()));
+        applyTurret(aimAngle(bearingToGoal() + turretOffsetDeg));
     }
 
     /** Shot tuning. Turret aim at goal. RPM + hood from suppliers, not tables. */
     public Command tuneShot(DoubleSupplier rpm, DoubleSupplier hoodPosition) {
         return infinite(() -> {
-            applyTurret(Constants.clamp(bearingToGoal(),
-                    Constants.turretMinDeg(), Constants.turretMaxDeg()));
+            applyTurret(aimAngle(bearingToGoal()));
             applyHood(Constants.clamp(hoodPosition.getAsDouble(),
                     Constants.HOOD_MIN_POSITION, Constants.HOOD_MAX_POSITION));
             armed = false;
@@ -316,7 +389,7 @@ public class Shooter implements Mechanism {
     public Command spinUp() {
         return instant(() -> {
             armed = true;
-            targetRpm = lookUp(Constants.DISTANCE_TO_RPM, distanceToGoal(), targetRpm);
+            targetRpm = tableRpm(distanceToGoal(), targetRpm);
             applyFlywheel();
         });
     }
@@ -471,6 +544,11 @@ public class Shooter implements Mechanism {
 
         // PIDF: hold speed.
         flywheelIntegral += error * dt;
+        // Anti-windup: I part never past FLYWHEEL_I_MAX_VOLTS.
+        if (Constants.FLYWHEEL_KI_VOLTS > 0) {
+            double maxIntegral = Constants.FLYWHEEL_I_MAX_VOLTS / Constants.FLYWHEEL_KI_VOLTS;
+            flywheelIntegral = Constants.clamp(flywheelIntegral, -maxIntegral, maxIntegral);
+        }
         double derivative = dt > 0 ? (error - lastFlywheelError) / dt : 0;
         lastFlywheelError = error;
 
@@ -502,7 +580,7 @@ public class Shooter implements Mechanism {
      * Launch angle = low arc that hit goal height at this distance.
      */
     public static double flightTimeS(double distanceIn) {
-        double rpm = lookUp(Constants.DISTANCE_TO_RPM, distanceIn, 0);
+        double rpm = tableRpm(distanceIn, 0);
         double speed = Constants.BALL_EXIT_EFFICIENCY
                 * Math.PI * Constants.FLYWHEEL_DIAMETER_IN * rpm / 60.0;
         if (speed <= 0 || distanceIn <= 0) {
@@ -517,6 +595,14 @@ public class Shooter implements Mechanism {
                 ? Math.PI / 4
                 : Math.atan((v2 - Math.sqrt(root)) / (g * distanceIn));
         return distanceIn / (speed * Math.cos(angle));
+    }
+
+    /** Table RPM for distance, times SHOT_RPM_SCALE. Empty table = fallback. */
+    private static double tableRpm(double distanceIn, double fallback) {
+        if (Constants.DISTANCE_TO_RPM.isEmpty()) {
+            return fallback;
+        }
+        return lookUp(Constants.DISTANCE_TO_RPM, distanceIn, fallback) * Constants.SHOT_RPM_SCALE;
     }
 
     /** Read table. Key clamped to table range. Empty table = fallback. */

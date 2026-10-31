@@ -23,12 +23,6 @@ dependencies {
     implementation 'dev.nextftc.v2:hardware:0.2.1'
     implementation 'dev.nextftc.v2:robot:0.2.1'
 
-    // Already pulled in transitively by dev.nextftc.v2:robot, which is built on Sinister.
-    // Declared explicitly to pin the version, because the Load gradle plugin applied in
-    // TeamCode/build.gradle must match it exactly.
     implementation 'dev.frozenmilk.sinister:Sloth:0.3.2'
-
-    // Panels, in the Sloth-compatible build. The version before the '+' must match the Sloth
-    // version above; the version after it is the Panels release.
     implementation 'com.bylazar.sloth:fullpanels:0.3.2+1.0.13'
 }

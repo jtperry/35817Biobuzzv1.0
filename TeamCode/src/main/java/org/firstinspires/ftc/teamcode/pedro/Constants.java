@@ -9,7 +9,6 @@ import com.pedropathing.math.Vector2D;
 import com.pedropathing.revhub.drivetrains.Mecanum;
 import com.pedropathing.revhub.drivetrains.MecanumConfig;
 import com.pedropathing.revhub.localizers.OctoQuadConfig;
-import com.pedropathing.revhub.localizers.OctoQuadLocalizer;
 import com.qualcomm.hardware.digitalchickenlabs.OctoQuad;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -68,8 +67,13 @@ public class Constants {
     );
 
     public static Follower create(HardwareMap h) {
+        return create(h, new SharedOctoQuadLocalizer(h, localizerConfig));
+    }
+
+    /** Follower on given localizer. Robot keep localizer for flywheel encoder. */
+    public static Follower create(HardwareMap h, SharedOctoQuadLocalizer localizer) {
         return new Follower(
-                new OctoQuadLocalizer(h, localizerConfig),
+                localizer,
                 new LimitedMecanum(h, drivetrainConfig),
                 new Foresight(foresightConfig)
         );

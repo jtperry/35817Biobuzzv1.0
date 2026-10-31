@@ -9,21 +9,25 @@ import org.firstinspires.ftc.teamcode.paths.RedAutoPaths;
 public interface AutoRoute {
 
     // One method per path, same name as visualizer.
-    Path path1();
+    Path garden();
 
-    Path path2();
+    Path gardenShoot();
 
-    Path path3();
+    Path flower1();
 
-    Path path4();
+    Path flower1Shoot();
 
-    Path path5();
+    Path flower2Prep();
 
-    Path path6();
+    Path flower2();
 
-    Path path7();
+    Path pushPrep();
 
-    Path path8();
+    Path flower2Shoot();
+
+    Path parkPrep();
+
+    Path park();
 
     // Adapters. Inherit export methods. Renamed path = compile error here.
     final class Red extends RedAutoPaths implements AutoRoute {

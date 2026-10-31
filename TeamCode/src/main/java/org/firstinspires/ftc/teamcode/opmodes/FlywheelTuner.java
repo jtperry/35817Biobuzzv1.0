@@ -20,8 +20,8 @@ import dev.nextftc.robot.triggers.CommandGamepad;
 @NextTeleop(name = "Flywheel Tuner", group = "test")
 public class FlywheelTuner extends NextOpMode {
 
-    /** Powers to test, low to high. */
-    private static final double[] POWERS = {0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
+    /** Powers to test, low to high. Shooting range only (~2500-4000 RPM), line most exact there. */
+    private static final double[] POWERS = {0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75};
 
     /** Wait this long at each power for speed to settle. */
     private static final double SETTLE_S = 2.5;
@@ -115,6 +115,9 @@ public class FlywheelTuner extends NextOpMode {
         double battery = voltsSum / Math.max(samples, 1);
         // Motor get power x battery volts.
         points.add(new double[]{rpm, power * battery, power, battery});
+        // Also to logcat. Survive after OpMode stop.
+        android.util.Log.i("FlywheelTuner", String.format(
+                "power %.2f  rpm %.0f  appliedV %.3f  battery %.2f", power, rpm, power * battery, battery));
 
         step++;
         if (step < POWERS.length) {

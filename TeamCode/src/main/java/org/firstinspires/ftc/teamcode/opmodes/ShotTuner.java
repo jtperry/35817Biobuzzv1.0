@@ -90,6 +90,8 @@ public class ShotTuner extends NextOpMode {
 
     @Override
     public void start() {
+        // Alliance picked in init. Start spot for that side.
+        robot.resetPoseToStart();
         // Schedule once. Turret aim, RPM + hood from tuner values.
         robot.shooter.tuneShot(() -> rpm, () -> hoodPosition).schedule();
     }
@@ -106,9 +108,11 @@ public class ShotTuner extends NextOpMode {
         if (robot.follower() == null) {
             return;
         }
+        // Red driver stand other side. Flip x + y.
+        double flip = robot.alliance() == Alliance.RED ? -1 : 1;
         DrivePowers powers = ManualDrive.fieldCentric(
-                gamepad1.left_stick_y,
-                gamepad1.left_stick_x,
+                flip * gamepad1.left_stick_y,
+                flip * gamepad1.left_stick_x,
                 -gamepad1.right_stick_x,
                 robot.follower().pose().heading()
         );

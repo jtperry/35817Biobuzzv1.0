@@ -41,12 +41,35 @@ public final class Constants {
     public static final Pose DEFAULT_START_POSE = new Pose(
             FIELD_SIZE_IN - ROBOT_CENTER_TO_LEFT_IN, FIELD_SIZE_IN - ROBOT_CENTER_TO_BACK_IN, Math.toRadians(-90));
 
+    /** How many teleop restart slots. Blue slots 0-5, Red = same slots mirrored 180 deg. */
+    public static final int NUM_RESTART_SLOTS = 6;
+
+    /** Slot names for telemetry. */
+    public static final String[] RESTART_SLOT_NAMES = {
+            "right", "right-flower", "left-flower", "top-flower", "bottom-flower", "left"
+    };
+
+    /**
+     * Blue restart poses.
+     * 0 right (default start, top-right corner), 1 right-flower,
+     * 2 left-flower, 3 top-flower, 4 bottom-flower, 5 left.
+     * Red = same slots mirrored across x = 72 and y = 72 (180 deg turn).
+     */
+    public static final Pose[] BLUE_RESTART_POSES = {
+            new Pose(FIELD_SIZE_IN - ROBOT_CENTER_TO_LEFT_IN, FIELD_SIZE_IN - ROBOT_CENTER_TO_BACK_IN, Math.toRadians(-90)),
+            new Pose(133, 105.6, Math.toRadians(180)),
+            new Pose(133, 84, Math.toRadians(180)),
+            new Pose(84, 8, Math.toRadians(90)),
+            new Pose(105.4, 8, Math.toRadians(90)),
+            new Pose(133, 8, Math.toRadians(0)),
+    };
+
     // ---------------------------------------------------------------- turret geometry
     //
     // turret deg per servo deg = (60 / 20) * (65 / 169) = 15 / 13 ~= 1.154
 
-    /** One turret servo full travel, degrees. */
-    public static double TURRET_SERVO_TRAVEL_DEG = 320;
+    /** One turret servo full travel, degrees. 312 measured: turret 0 to 1 = exactly 360. */
+    public static double TURRET_SERVO_TRAVEL_DEG = 312;
 
     /** Turret servo pulse range, us. Match SWYFT programmer. */
     public static final double TURRET_SERVO_PWM_MIN_US = 500;
@@ -67,7 +90,7 @@ public final class Constants {
                 * (TURRET_SHAFT_OUTPUT_GEAR_TEETH / TURRET_RING_GEAR_TEETH);
     }
 
-    /** Total turret travel. ~369 deg at 320 servo. */
+    /** Total turret travel. 360 deg at 312 servo: position 0 and 1 both straight back. */
     public static double turretTravelDeg() {
         return TURRET_SERVO_TRAVEL_DEG * turretDegPerServoDeg();
     }
@@ -85,17 +108,20 @@ public final class Constants {
     public static double TURRET_CENTER_POSITION = 0.5;
 
     /** Gap kept from each end of travel. */
-    public static double TURRET_LIMIT_MARGIN_DEG = 2.0;
+    public static double TURRET_LIMIT_MARGIN_DEG = 0.25;
 
-    /** Turret limits, deg from robot forward. */
+    /** Target this far past back limit: stay on same side, no full swing. */
+    public static double TURRET_WRAP_HYSTERESIS_DEG = 10.0;
+
+    /** Turret limits, deg from robot forward. Full travel, past +-180 ok. */
     public static double turretMinDeg() {
-        return Math.max(-180, TURRET_CENTER_DEG - TURRET_CENTER_POSITION / turretPositionPerDeg()
-                + TURRET_LIMIT_MARGIN_DEG);
+        return TURRET_CENTER_DEG - TURRET_CENTER_POSITION / turretPositionPerDeg()
+                + TURRET_LIMIT_MARGIN_DEG;
     }
 
     public static double turretMaxDeg() {
-        return Math.min(180, TURRET_CENTER_DEG + (1 - TURRET_CENTER_POSITION) / turretPositionPerDeg()
-                - TURRET_LIMIT_MARGIN_DEG);
+        return TURRET_CENTER_DEG + (1 - TURRET_CENTER_POSITION) / turretPositionPerDeg()
+                - TURRET_LIMIT_MARGIN_DEG;
     }
 
     // ---------------------------------------------------------------- turret timing
@@ -118,11 +144,20 @@ public final class Constants {
     /** Stick below this ignored. */
     public static double STICK_DEADZONE = 0.05;
 
+    // ---------------------------------------------------------------- auto
+
+    /** Auto path: slower than this = maybe stuck. */
+    public static double AUTO_STUCK_SPEED_IN_PER_S = 2.0;
+
+    /** Stuck this long = give up path, go next step. */
+    public static double AUTO_STUCK_MS = 3000;
+
     // ---------------------------------------------------------------- hood
 
     public static double HOOD_MIN_POSITION = 0.0254;
     public static double HOOD_MAX_POSITION = 0.45;
-    public static double HOOD_STOWED_POSITION = 0.0;
+    /** Stow inside hood range. Below min = hood slam hard stop. */
+    public static double HOOD_STOWED_POSITION = 0.0254;
 
     /** Hood trim per press. */
     public static double HOOD_TRIM_STEP = 0.01;
@@ -135,19 +170,31 @@ public final class Constants {
     /** Flywheel encoder ticks per rev. */
     public static double FLYWHEEL_TICKS_PER_REV = 28.0;
 
-    // Flywheel gains, in VOLTS. Power = volts / battery voltage.
-    // kS + kV: run Flywheel Tuner, copy numbers here.
+    /** True: flywheel encoder on OctoQuad. False: on motor port. */
+    public static boolean FLYWHEEL_ENCODER_ON_OCTOQUAD = true;
+
+    /** OctoQuad port for flywheel encoder. */
+    public static int FLYWHEEL_OCTOQUAD_PORT = 2;
+
+    /** Flip if RPM read negative. */
+    public static boolean FLYWHEEL_OCTOQUAD_REVERSED = true;
+
+    /** OctoQuad speed window, ms (1-255). Small = fresh but coarse: 1 tick = 60000 / (ticks per rev x ms) RPM. */
+    public static int FLYWHEEL_VELOCITY_INTERVAL_MS = 50;
 
     /** Volts to beat friction. */
-    public static double FLYWHEEL_KS_VOLTS = 0.0;
+    public static double FLYWHEEL_KS_VOLTS = 1.4145;
 
     /** Volts per RPM. Old 1/6000 power at 13 V. */
-    public static double FLYWHEEL_KV_VOLTS_PER_RPM = 13.0 / 6000.0;
+    public static double FLYWHEEL_KV_VOLTS_PER_RPM = 0.0020984;
 
     /** Volts per RPM of error. Old 0.003 power at 13 V. */
-    public static double FLYWHEEL_KP_VOLTS = 0.039;
+    public static double FLYWHEEL_KP_VOLTS = 0.01;
     public static double FLYWHEEL_KI_VOLTS = 0.0;
     public static double FLYWHEEL_KD_VOLTS = 0.0;
+
+    /** Most volts I part can add or take away. */
+    public static double FLYWHEEL_I_MAX_VOLTS = 1.5;
 
     /** Read battery this often, ms. Each read slow down loop a bit. */
     public static double VOLTAGE_READ_MS = 100;
@@ -159,7 +206,7 @@ public final class Constants {
     public static double IDLE_RPM = 1000;
 
     /** This close to target = at speed. */
-    public static double RPM_TOLERANCE = 100;
+    public static double RPM_TOLERANCE = 50;
 
     /** Stay in tolerance this long before atSpeed() true. */
     public static double AT_SPEED_DEBOUNCE_SECONDS = 0.1;
@@ -178,8 +225,8 @@ public final class Constants {
     public static final double FLOWER_SERVO_PWM_MIN_US = 500;
     public static final double FLOWER_SERVO_PWM_MAX_US = 2500;
 
-    public static double FLOWER_STOWED_POSITION = 0.1;
-    public static double FLOWER_DEPLOYED_POSITION = 0.8;
+    public static double FLOWER_STOWED_POSITION = 1.0;
+    public static double FLOWER_DEPLOYED_POSITION = 0.0;
 
     // ---------------------------------------------------------------- intake powers
 
@@ -196,7 +243,7 @@ public final class Constants {
     public static double STAGE2_INTAKE_POWER = -0.5;
 
     /** Feeding: stage 1 toward shooter. Lower = slower shots. */
-    public static double STAGE1_FEED_POWER = 0.7;
+    public static double STAGE1_FEED_POWER = 0.8;
 
     /** Feeding: stage 2 toward shooter. Lower = slower shots. */
     public static double STAGE2_FEED_POWER = 1.0;
@@ -210,7 +257,7 @@ public final class Constants {
     public static double FEED_TIME_MS = 250;
 
     /** Both stages run time to empty robot. */
-    public static double VOLLEY_TIME_MS = 500;
+    public static double VOLLEY_TIME_MS = 1000;
 
     /** Max wait for flywheel speed. */
     public static double SPINUP_TIMEOUT_MS = 2000;
@@ -245,6 +292,13 @@ public final class Constants {
     /** Gravity, inches per second squared. */
     public static final double GRAVITY_IN_PER_S2 = 386.09;
 
+    public static double FLOWER_SPEED_POS_PER_SEC = 0.7;
+
+    // ---------------------------------------------------------------- shot scale
+
+    /** Whole RPM table times this. 0.95 = all shots 5% slower. Shot Tuner ignore it. */
+    public static double SHOT_RPM_SCALE = 1.0;
+
     // ---------------------------------------------------------------- lookup tables
 
     /** Blend between two table entries. */
@@ -260,7 +314,7 @@ public final class Constants {
     static {
         // Placeholders. Replace when tuning.
         DISTANCE_TO_RPM.put(20.7, 2900.0);
-        DISTANCE_TO_RPM.put(34.9, 3000.0);
+        DISTANCE_TO_RPM.put(34.9, 2950.0);
         DISTANCE_TO_RPM.put(42.5, 3000.0);
         DISTANCE_TO_RPM.put(51.3, 3000.0);
         DISTANCE_TO_RPM.put(55.1, 3200.0);
@@ -270,6 +324,7 @@ public final class Constants {
         DISTANCE_TO_RPM.put(91.1, 3500.0);
 
         DISTANCE_TO_HOOD.put(20.7, 0.03);
+        DISTANCE_TO_HOOD.put(27.5, 0.15);
         DISTANCE_TO_HOOD.put(34.9, 0.2);
         DISTANCE_TO_HOOD.put(42.5, 0.22);
         DISTANCE_TO_HOOD.put(51.3, 0.31);
@@ -282,6 +337,34 @@ public final class Constants {
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /** Teleop start spot for alliance. Red = blue spot mirrored across x = 72 and y = 72 (180 deg turn). */
+    public static Pose startPose(Alliance alliance) {
+        return restartPose(alliance, 0);
+    }
+
+    /** Restart pose for alliance + slot. Red = blue slot mirrored across x = 72 and y = 72. */
+    public static Pose restartPose(Alliance alliance, int slot) {
+        Pose blue = BLUE_RESTART_POSES[Math.floorMod(slot, NUM_RESTART_SLOTS)];
+        return alliance == Alliance.RED ? mirror180(blue) : blue;
+    }
+
+    /** Rotate 180 deg about field center: mirror x and y, heading + PI. */
+    public static Pose mirror180(Pose pose) {
+        return new Pose(
+                FIELD_SIZE_IN - pose.x(),
+                FIELD_SIZE_IN - pose.y(),
+                wrapAngle(pose.heading() + Math.PI));
+    }
+
+    /** Wrap radians to [-PI, PI). */
+    public static double wrapAngle(double radians) {
+        double wrapped = (radians + Math.PI) % (2 * Math.PI);
+        if (wrapped < 0) {
+            wrapped += 2 * Math.PI;
+        }
+        return wrapped - Math.PI;
+    }
 
     /** Goal x for alliance + goal. */
     public static double goalX(Alliance alliance, Goal goal) {

@@ -7,6 +7,7 @@ import com.pedropathing.math.Velocity;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
+import org.firstinspires.ftc.teamcode.pedro.SharedOctoQuadLocalizer;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeTransfer;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 
@@ -26,13 +27,16 @@ public class Robot implements NextRobot {
             this::pose, this::alliance, this::goal, this::velocity, this::batteryVoltage);
 
     private VoltageSensor voltageSensor;
-    /** Last battery read. 12 till first read. */
+    /** Last battery read. 12 till first rad. */
     private double lastVoltage = 12.0;
     private long lastVoltageReadMs = 0;
 
     private Follower follower;
 
     private Alliance alliance = Alliance.BLUE;
+
+    /** Selected teleop restart slot 0-5. Picked in init, used by start(). */
+    private int restartSlot = 0;
 
     /** HIVE goal shooter aim at now. */
     private Goal goal = Goal.A;
@@ -55,9 +59,16 @@ public class Robot implements NextRobot {
         lastVoltageReadMs = 0;
         // Full power. Old limit from stopped auto no carry over.
         org.firstinspires.ftc.teamcode.pedro.LimitedMecanum.maxPower = 1.0;
-        follower = org.firstinspires.ftc.teamcode.pedro.Constants.create(hardwareMap);
+        SharedOctoQuadLocalizer localizer = new SharedOctoQuadLocalizer(
+                hardwareMap, org.firstinspires.ftc.teamcode.pedro.Constants.localizerConfig);
+        follower = org.firstinspires.ftc.teamcode.pedro.Constants.create(hardwareMap, localizer);
+        // Flywheel encoder on OctoQuad. Read with pose, no extra I2C.
+        shooter.useOctoQuad(localizer);
         if (follower != null) {
             follower.setPose(startPose);
+            // Speed limit need robot speed.
+            org.firstinspires.ftc.teamcode.pedro.LimitedMecanum.velocity = follower::velocity;
+            org.firstinspires.ftc.teamcode.pedro.LimitedMecanum.heading = () -> follower.pose().heading();
         }
     }
 
@@ -78,18 +89,35 @@ public class Robot implements NextRobot {
 
     /** Teleop start pose: auto end pose, else default. Use once. */
     public Pose takeHandoffPose() {
-        Pose pose = autoHandoffPending ? lastPose : Constants.DEFAULT_START_POSE;
+        Pose pose = autoHandoffPending ? lastPose : Constants.startPose(alliance);
         autoHandoffPending = false;
         return pose;
     }
 
+    /** Pose = restart slot for alliance. Hold there, not old hold spot. */
+    public void resetPoseToSlot(int slot) {
+        restartSlot = Math.floorMod(slot, Constants.NUM_RESTART_SLOTS);
+        Pose pose = Constants.restartPose(alliance, restartSlot);
+        if (follower != null) {
+            follower.setPose(pose);
+            follower.hold(pose);
+        }
+        lastPose = pose;
+    }
+
     /** Pose = default start spot. Hold there, not old hold spot. */
     public void resetPoseToStart() {
-        if (follower != null) {
-            follower.setPose(Constants.DEFAULT_START_POSE);
-            follower.hold(Constants.DEFAULT_START_POSE);
-        }
-        lastPose = Constants.DEFAULT_START_POSE;
+        resetPoseToSlot(restartSlot);
+    }
+
+    /** Selected restart slot. */
+    public int restartSlot() {
+        return restartSlot;
+    }
+
+    /** Pick restart slot used by start() + resetPoseToStart(). */
+    public void setRestartSlot(int slot) {
+        restartSlot = Math.floorMod(slot, Constants.NUM_RESTART_SLOTS);
     }
 
     /** Robot-centric drive. No follower = nothing. */

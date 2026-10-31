@@ -4,6 +4,7 @@ import static com.pedropathing.ivy.groups.Groups.sequential;
 
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.pedropathing.ivy.Command;
+import com.pedropathing.ivy.commands.Commands;
 import com.pedropathing.math.Pose;
 
 import org.firstinspires.ftc.teamcode.commands.AutoCommands;
@@ -44,15 +45,35 @@ public abstract class MainAuto extends NextOpMode {
     /** Auto routine. Add actions between drives. */
     private Command routine() {
         return sequential(
-                AutoCommands.driveIntaking(robot, route.path1()),
-                AutoCommands.drive(robot, route.path2()),
-                AutoCommands.driveIntaking(robot, route.path3()),
-                AutoCommands.drive(robot, route.path4()),
                 ShootCommands.shootAll(robot),
-                AutoCommands.drive(robot, route.path5()),
-                AutoCommands.driveIntaking(robot, route.path6()),
-                AutoCommands.drive(robot, route.path7()),
-                AutoCommands.drive(robot, route.path8()));
+
+                // First half full power, rest 30%. Stuck on ball 3 s = move on.
+                AutoCommands.withSpeeds(robot, AutoCommands.driveIntakingUnjam(robot, route.garden()),
+                        0, 100,
+                        0.5, 30),
+                AutoCommands.intakeFor(robot, 500),
+                AutoCommands.drive(robot, route.gardenShoot()),
+                ShootCommands.shootAll(robot),
+
+                robot.intake.deployFlower(),
+                Commands.waitMs(1000),
+                AutoCommands.driveIntakingUnjam(robot, route.flower1(), 75),
+                AutoCommands.intakeFor(robot, 1000),
+
+                AutoCommands.drive(robot, route.flower1Shoot()),
+                ShootCommands.shootAll(robot),
+
+                AutoCommands.drive(robot, route.flower2Prep()),
+                AutoCommands.driveIntakingUnjam(robot, route.flower2(), 75),
+                AutoCommands.intakeFor(robot, 1000),
+                robot.intake.stowFlower(),
+
+                AutoCommands.drive(robot, route.pushPrep()),
+                AutoCommands.drive(robot, route.flower2Shoot()),
+                ShootCommands.shootAll(robot),
+
+                AutoCommands.drive(robot, route.parkPrep()),
+                AutoCommands.drive(robot, route.park(), 50));
     }
 
     @Override
