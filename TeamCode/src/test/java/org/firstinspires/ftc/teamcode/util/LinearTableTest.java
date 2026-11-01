@@ -47,4 +47,10 @@ public class LinearTableTest {
         table.clear();
         assertTrue(table.isEmpty());
     }
+
+    @Test
+    public void nanKeyReturnsTheFirstValueInsteadOfThrowing() {
+        LinearTable table = new LinearTable().put(10, 100).put(20, 200);
+        assertEquals(100.0, table.get(Double.NaN), EPS);
+    }
 }

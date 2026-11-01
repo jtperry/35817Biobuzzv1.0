@@ -50,10 +50,14 @@ public final class LinearTable {
         return values[index];
     }
 
-    /** Value at key, blended between the two nearest points, clamped at the ends. */
+    /** Value at key, blended between the two nearest points, clamped at the ends. A NaN key returns the first point's value. */
     public double get(double key) {
         if (keys.length == 0) {
             throw new IllegalStateException("LinearTable is empty");
+        }
+        if (Double.isNaN(key)) {
+            // A bad distance must never throw mid-match: use the first point.
+            return values[0];
         }
         int last = keys.length - 1;
         if (key <= keys[0]) {
