@@ -60,6 +60,8 @@ public class Turret implements Mechanism {
     private boolean rightEnabled = true;
     private double trimDeg = 0;
     private double commandedDeg = 0;
+    /** The angle asked for (before limits and wrapping): lets settled() see a turret held short at a limit. */
+    private double requestedDeg = 0;
     /** Where the turret probably is: chases the command at SLEW_DEG_PER_SEC. */
     private final Slew estimate = new Slew(0);
 
@@ -85,6 +87,7 @@ public class Turret implements Mechanism {
         trimDeg = 0;
         trackingRateDegPerS = 0;
         command(0);
+        requestedDeg = 0;
         estimate.reset(commandedDeg);
     }
 
@@ -92,15 +95,18 @@ public class Turret implements Mechanism {
     public void periodic() {
         switch (mode) {
             case TRACK:
-                command(chooseAngle(trackingDeg + trackingRateDegPerS * LAG_S + trimDeg));
+                requestedDeg = trackingDeg + trackingRateDegPerS * LAG_S + trimDeg;
+                command(chooseAngle(requestedDeg));
                 break;
             case HOLD:
+                requestedDeg = holdDeg;
                 command(MathUtil.clamp(holdDeg, minDeg(), maxDeg()));
                 break;
             case RAW:
                 double position = MathUtil.clamp(rawPosition.getAsDouble(), 0, 1);
                 writePosition(position, rawLeft, rawRight);
                 commandedDeg = degreesAt(position);
+                requestedDeg = commandedDeg;
                 break;
         }
         estimate.step(commandedDeg, SLEW_DEG_PER_SEC, System.nanoTime());
@@ -138,7 +144,8 @@ public class Turret implements Mechanism {
 
     /** Init loop only (mechanism periodic does not run before start): point at the tracking angle now. */
     public void applyTrackingNow() {
-        command(chooseAngle(trackingDeg + trimDeg));
+        requestedDeg = trackingDeg + trimDeg;
+        command(chooseAngle(requestedDeg));
         estimate.reset(commandedDeg);
     }
 
@@ -152,8 +159,21 @@ public class Turret implements Mechanism {
 
     // ---------------------------------------------------------------- state
 
+    /** The servos have arrived (slew estimate) and they are pointing at the requested angle (see onTarget()). */
     public boolean settled() {
-        return Math.abs(commandedDeg - estimate.value()) <= SETTLE_TOLERANCE_DEG;
+        return Math.abs(commandedDeg - estimate.value()) <= SETTLE_TOLERANCE_DEG && onTarget();
+    }
+
+    /**
+     * The command points at the requested angle, to within SETTLE_TOLERANCE_DEG, modulo 360. False while the
+     * turret waits at a limit short of the request, or when the request is outside the travel.
+     */
+    public boolean onTarget() {
+        return onTarget(requestedDeg, commandedDeg, SETTLE_TOLERANCE_DEG);
+    }
+
+    static boolean onTarget(double requestedDeg, double commandedDeg, double toleranceDeg) {
+        return Math.abs(MathUtil.wrapDegrees(requestedDeg - commandedDeg)) <= toleranceDeg;
     }
 
     public double commandedDeg() {
@@ -190,26 +210,29 @@ public class Turret implements Mechanism {
 
     // ---------------------------------------------------------------- internals
 
-    /**
-     * Equivalent angle (+-360) inside the range, closest to where the turret is.
-     * Just past a limit on the current side: wait at the limit instead of swinging all the way around.
-     */
     private double chooseAngle(double degrees) {
-        double min = minDeg();
-        double max = maxDeg();
+        return chooseAngle(degrees, commandedDeg, minDeg(), maxDeg(), WRAP_HYSTERESIS_DEG);
+    }
+
+    /**
+     * Equivalent angle (+-360) inside [min, max], closest to where the turret is (current).
+     * If the turret is already within hysteresis of a limit and the request is just past that limit, wait at the
+     * limit instead of swinging all the way around.
+     */
+    static double chooseAngle(double degrees, double current, double min, double max, double hysteresis) {
         double best = Double.NaN;
         for (int k = -1; k <= 1; k++) {
             double candidate = degrees + 360.0 * k;
             if (candidate >= min && candidate <= max
-                    && (Double.isNaN(best) || Math.abs(candidate - commandedDeg) < Math.abs(best - commandedDeg))) {
+                    && (Double.isNaN(best) || Math.abs(candidate - current) < Math.abs(best - current))) {
                 best = candidate;
             }
         }
         for (int k = -1; k <= 1; k++) {
             double candidate = degrees + 360.0 * k;
-            boolean pastMax = candidate > max && candidate <= max + WRAP_HYSTERESIS_DEG;
-            boolean pastMin = candidate < min && candidate >= min - WRAP_HYSTERESIS_DEG;
-            if ((pastMax && commandedDeg > 0) || (pastMin && commandedDeg < 0)) {
+            boolean pastMax = candidate > max && candidate <= max + hysteresis;
+            boolean pastMin = candidate < min && candidate >= min - hysteresis;
+            if ((pastMax && current >= max - hysteresis) || (pastMin && current <= min + hysteresis)) {
                 return MathUtil.clamp(candidate, min, max);
             }
         }

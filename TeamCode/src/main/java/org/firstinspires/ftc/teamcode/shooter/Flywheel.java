@@ -80,6 +80,10 @@ public class Flywheel implements Mechanism {
 
     public Flywheel(Battery battery) {
         this.battery = battery;
+        // Float, not the hub default (brake): a braked motor at 0 power drags the flywheel the other motor drives,
+        // and a braked flywheel stops hard on off(). Set explicitly: NextMotor's own FLOAT default is never sent.
+        motor1.setZeroPowerBehavior(NextMotor.ZeroPowerBehavior.FLOAT);
+        motor2.setZeroPowerBehavior(NextMotor.ZeroPowerBehavior.FLOAT);
     }
 
     /** Call each OpMode after the follower exists. */
