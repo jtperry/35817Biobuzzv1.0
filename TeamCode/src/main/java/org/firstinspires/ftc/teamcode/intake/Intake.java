@@ -131,8 +131,8 @@ public class Intake implements Mechanism {
     // ---------------------------------------------------------------- hardware
 
     private void runStages(double stage1Power, double stage2Power) {
-        stage1.setThrottle(MathUtil.safePower(stage1Power) * STAGE1_SIGN);
-        stage2.setThrottle(MathUtil.safePower(stage2Power) * STAGE2_SIGN);
+        stage1.setThrottle(MathUtil.safePower(stage1Power * STAGE1_SIGN));
+        stage2.setThrottle(MathUtil.safePower(stage2Power * STAGE2_SIGN));
     }
 
     private void setGate(boolean open) {

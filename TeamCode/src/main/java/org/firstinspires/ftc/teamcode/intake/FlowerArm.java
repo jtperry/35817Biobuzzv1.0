@@ -16,6 +16,12 @@ public class FlowerArm implements Mechanism {
     public static final String RIGHT_SERVO = "flowerRight";
     public static final double PWM_MIN_US = 500;
     public static final double PWM_MAX_US = 2500;
+    /** NextServo's default cache tolerance. */
+    private static final double DEFAULT_CACHE_TOLERANCE = 0.01;
+
+    /** Servo directions, read in bindServos(): flip live during bring-up, re-init the OpMode, then copy into code. */
+    public static boolean LEFT_REVERSED = false;
+    public static boolean RIGHT_REVERSED = true;
 
     public static double STOWED_POSITION = 1.0;
     public static double DEPLOYED_POSITION = 0.0;
@@ -34,8 +40,10 @@ public class FlowerArm implements Mechanism {
 
     /** Fresh servo objects each OpMode (the SDK resets PWM ranges between OpModes). */
     public void bindServos() {
-        left = new NextServo(LEFT_SERVO);
-        right = new NextServo(RIGHT_SERVO, 0.01, NextMotor.Direction.REVERSE);
+        left = new NextServo(LEFT_SERVO, DEFAULT_CACHE_TOLERANCE,
+                LEFT_REVERSED ? NextMotor.Direction.REVERSE : NextMotor.Direction.FORWARD);
+        right = new NextServo(RIGHT_SERVO, DEFAULT_CACHE_TOLERANCE,
+                RIGHT_REVERSED ? NextMotor.Direction.REVERSE : NextMotor.Direction.FORWARD);
         left.setPwmRange(PWM_MIN_US, PWM_MAX_US);
         right.setPwmRange(PWM_MIN_US, PWM_MAX_US);
         started = false;
