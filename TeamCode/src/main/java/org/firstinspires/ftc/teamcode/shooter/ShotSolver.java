@@ -68,9 +68,16 @@ public final class ShotSolver {
         return solution;
     }
 
-    /** One loop. Pose and velocity in the field frame; dtS = seconds since the previous call. */
+    /** One loop. Pose and velocity in the field frame (in, rad, in/s, rad/s); dtS = seconds since the previous call. A non-finite input resets the filters and returns the last solution unchanged. */
     public ShotSolution update(double x, double y, double heading, double vx, double vy, double omega,
                                double dtS, double cellX, double cellY) {
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(heading)
+                || !Double.isFinite(vx) || !Double.isFinite(vy) || !Double.isFinite(omega)
+                || !Double.isFinite(dtS) || !Double.isFinite(cellX) || !Double.isFinite(cellY)) {
+            // One bad sample must not poison the filters: forget history, keep the last shot.
+            reset();
+            return solution;
+        }
         estimateAcceleration(vx, vy, dtS);
 
         double latency = SHOOT_ON_MOVE ? RELEASE_LATENCY_S : 0;

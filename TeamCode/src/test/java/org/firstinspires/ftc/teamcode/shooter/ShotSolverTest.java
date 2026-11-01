@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.shooter;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -103,5 +104,38 @@ public class ShotSolverTest {
         double firstDeg = first.turretDeg;
         ShotSolution second = solver.update(0, 0, 0.1, 0, 0, 0, 0.1, 100, 0);
         assertEquals((second.turretDeg - firstDeg) / 0.1, second.turretRateDegPerS, EPS);
+    }
+
+    @Test
+    public void nonFiniteVelocityResetsFiltersAndKeepsTheLastSolution() {
+        solver.update(0, 0, 0, 0, 20, 0, 0.01, 100, 0);
+        solver.update(0, 0, 0, 0, 20, 0, 0.01, 100, 0);
+        ShotSolution shot = solver.update(0, 0, 0, Double.NaN, 20, 0, 0.01, 100, 0);
+        assertEquals(-10.0, shot.aimY, EPS);
+        assertEquals(0.0, shot.turretRateDegPerS, EPS);
+        ShotSolution next = solver.update(0, 0, 0, 0, 20, 0, 0.01, 100, 0);
+        assertEquals(-10.0, next.aimY, EPS);
+        assertTrue(Double.isFinite(next.turretDeg));
+        assertTrue(Double.isFinite(next.turretRateDegPerS));
+    }
+
+    @Test
+    public void nonFinitePoseRecoversOnTheNextGoodLoop() {
+        solver.update(0, 0, 0, 0, 0, 0, 0.01, 100, 0);
+        solver.update(Double.NaN, 0, 0, 0, 0, 0, 0.01, 100, 0);
+        ShotSolution next = solver.update(0, 0, 0.1, 0, 0, 0, 0.01, 100, 0);
+        assertTrue(Double.isFinite(next.turretDeg));
+        assertTrue(Double.isFinite(next.distanceIn));
+        assertTrue(Double.isFinite(next.turretRateDegPerS));
+    }
+
+    @Test
+    public void infinityIsTreatedLikeNaN() {
+        solver.update(0, 0, 0, 0, 20, 0, 0.01, 100, 0);
+        ShotSolution shot = solver.update(0, 0, 0, 0, Double.POSITIVE_INFINITY, 0, 0.01, 100, 0);
+        assertEquals(0.0, shot.turretRateDegPerS, EPS);
+        ShotSolution next = solver.update(0, 0, 0, 0, 20, 0, 0.01, 100, 0);
+        assertTrue(Double.isFinite(next.aimY));
+        assertTrue(Double.isFinite(next.turretRateDegPerS));
     }
 }
