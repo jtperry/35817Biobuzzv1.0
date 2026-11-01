@@ -1,14 +1,9 @@
 package org.firstinspires.ftc.teamcode.autos;
 
-import static com.pedropathing.ivy.groups.Groups.sequential;
-
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.pedropathing.ivy.Command;
-import com.pedropathing.ivy.commands.Commands;
 import com.pedropathing.math.Pose;
 
-import org.firstinspires.ftc.teamcode.commands.AutoCommands;
-import org.firstinspires.ftc.teamcode.commands.ShootCommands;
 import org.firstinspires.ftc.teamcode.globals.Alliance;
 import org.firstinspires.ftc.teamcode.globals.Robot;
 
@@ -16,65 +11,32 @@ import dev.nextftc.robot.Telemetry;
 import dev.nextftc.robot.opmode.BulkReadHook;
 import dev.nextftc.robot.opmode.NextOpMode;
 
-/** Main auto. Routine for both alliances. */
+/** Auto setup every routine share. Subclass = path sequence. */
 public abstract class MainAuto extends NextOpMode {
 
-    private final Robot robot;
-    private final Alliance alliance;
-    private final AutoRoute route;
+    protected final Robot robot;
+    protected final Alliance alliance;
 
     /** False = no follower. Nothing scheduled. */
     private final boolean ready;
 
-    protected MainAuto(Robot robot, Alliance alliance, AutoRoute route) {
+    protected MainAuto(Robot robot, Alliance alliance, Pose startPose) {
         super(robot, BulkReadHook.INSTANCE);
         this.robot = robot;
         this.alliance = alliance;
-        this.route = route;
 
         Telemetry.addBackend(PanelsTelemetry.INSTANCE.getFtcTelemetry());
 
         robot.bindHardware();
         // Start pose = export "start" pose.
-        ready = robot.beginAuto(hardwareMap, alliance, StartPose.of(route));
+        ready = robot.beginAuto(hardwareMap, alliance, startPose);
         robot.reset();
         // Like teleop: flywheel at table speed whole auto. Turret aim by default command.
         robot.shooter.arm();
     }
 
     /** Auto routine. Add actions between drives. */
-    private Command routine() {
-        return sequential(
-                ShootCommands.shootAll(robot),
-
-                // First half full power, rest 30%. Stuck on ball 3 s = move on.
-                AutoCommands.withSpeeds(robot, AutoCommands.driveIntakingUnjam(robot, route.garden()),
-                        0, 100,
-                        0.5, 30),
-                AutoCommands.intakeFor(robot, 500),
-                AutoCommands.drive(robot, route.gardenShoot()),
-                ShootCommands.shootAll(robot),
-
-                robot.intake.deployFlower(),
-                Commands.waitMs(1000),
-                AutoCommands.driveIntakingUnjam(robot, route.flower1(), 75),
-                AutoCommands.intakeFor(robot, 1000),
-
-                AutoCommands.drive(robot, route.flower1Shoot()),
-                ShootCommands.shootAll(robot),
-
-                AutoCommands.drive(robot, route.flower2Prep()),
-                AutoCommands.driveIntakingUnjam(robot, route.flower2(), 75),
-                AutoCommands.intakeFor(robot, 1000),
-                robot.intake.stowFlower(),
-
-                AutoCommands.drive(robot, route.pushPrep()),
-                AutoCommands.drive(robot, route.flower2Shoot()),
-                ShootCommands.shootAll(robot),
-
-                AutoCommands.drive(robot, route.parkPrep()),
-                AutoCommands.drive(robot, route.park(), 50));
-    }
+    protected abstract Command routine();
 
     @Override
     public void start() {

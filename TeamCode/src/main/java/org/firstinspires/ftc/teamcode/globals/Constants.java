@@ -206,7 +206,7 @@ public final class Constants {
     public static double IDLE_RPM = 1000;
 
     /** This close to target = at speed. */
-    public static double RPM_TOLERANCE = 50;
+    public static double RPM_TOLERANCE = 175;
 
     /** Stay in tolerance this long before atSpeed() true. */
     public static double AT_SPEED_DEBOUNCE_SECONDS = 0.1;
