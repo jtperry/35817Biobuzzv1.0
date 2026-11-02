@@ -5,12 +5,12 @@ import static com.pedropathing.ivy.groups.Groups.sequential;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.commands.Commands;
 
+import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.commands.AutoCommands;
 import org.firstinspires.ftc.teamcode.commands.ShootCommands;
-import org.firstinspires.ftc.teamcode.globals.Alliance;
-import org.firstinspires.ftc.teamcode.globals.Robot;
+import org.firstinspires.ftc.teamcode.field.Alliance;
 
-/** Main auto. Routine for both alliances. */
+/** 2 Tip auto. Routine for both alliances. */
 public abstract class MainAuto2Tip extends MainAuto {
 
     private final AutoRoute route;
@@ -23,32 +23,32 @@ public abstract class MainAuto2Tip extends MainAuto {
     @Override
     protected Command routine() {
         return sequential(
-                ShootCommands.shootAll(robot),
+                ShootCommands.volley(robot),
 
-                // First half full power, rest 30%. Stuck on ball 3 s = move on.
+                // First half full power, rest 30%. Stuck on a ball 3 s = move on.
                 AutoCommands.withSpeeds(robot, AutoCommands.driveIntakingUnjam(robot, route.garden()),
                         0, 100,
                         0.5, 30),
                 AutoCommands.intakeFor(robot, 500),
                 AutoCommands.drive(robot, route.gardenShoot()),
-                ShootCommands.shootAll(robot),
+                ShootCommands.volley(robot),
 
-                robot.intake.deployFlower(),
+                Commands.instant(robot.flower::deploy),
                 Commands.waitMs(1000),
                 AutoCommands.driveIntakingUnjam(robot, route.flower1(), 75),
                 AutoCommands.intakeFor(robot, 1000),
 
                 AutoCommands.drive(robot, route.flower1Shoot()),
-                ShootCommands.shootAll(robot),
+                ShootCommands.volley(robot),
 
                 AutoCommands.drive(robot, route.flower2Prep()),
                 AutoCommands.driveIntakingUnjam(robot, route.flower2(), 75),
                 AutoCommands.intakeFor(robot, 1000),
-                robot.intake.stowFlower(),
+                Commands.instant(robot.flower::stow),
 
                 AutoCommands.drive(robot, route.pushPrep()),
                 AutoCommands.drive(robot, route.flower2Shoot()),
-                ShootCommands.shootAll(robot),
+                ShootCommands.volley(robot),
 
                 AutoCommands.drive(robot, route.parkPrep()),
                 AutoCommands.drive(robot, route.park(), 50));

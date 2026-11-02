@@ -1,7 +1,7 @@
 package org.firstinspires.ftc.teamcode.autos;
 
-import org.firstinspires.ftc.teamcode.globals.Alliance;
-import org.firstinspires.ftc.teamcode.globals.Robot;
+import org.firstinspires.ftc.teamcode.field.Alliance;
+import org.firstinspires.ftc.teamcode.Robot;
 
 import dev.nextftc.robot.opmode.NextAutonomous;
 

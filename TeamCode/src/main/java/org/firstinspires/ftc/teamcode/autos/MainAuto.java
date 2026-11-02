@@ -1,80 +1,75 @@
 package org.firstinspires.ftc.teamcode.autos;
 
-import com.bylazar.telemetry.PanelsTelemetry;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.math.Pose;
 
-import org.firstinspires.ftc.teamcode.globals.Alliance;
-import org.firstinspires.ftc.teamcode.globals.Robot;
+import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.field.Alliance;
+import org.firstinspires.ftc.teamcode.util.FieldDrawing;
+import org.firstinspires.ftc.teamcode.util.MathUtil;
+import org.firstinspires.ftc.teamcode.util.RobotTelemetry;
 
-import dev.nextftc.robot.Telemetry;
 import dev.nextftc.robot.opmode.BulkReadHook;
 import dev.nextftc.robot.opmode.NextOpMode;
 
-/** Auto setup every routine share. Subclass = path sequence. */
+/** Setup every auto shares. Subclass = path sequence. */
 public abstract class MainAuto extends NextOpMode {
 
     protected final Robot robot;
     protected final Alliance alliance;
-
-    /** False = no follower. Nothing scheduled. */
-    private final boolean ready;
+    private final RobotTelemetry tele;
 
     protected MainAuto(Robot robot, Alliance alliance, Pose startPose) {
         super(robot, BulkReadHook.INSTANCE);
         this.robot = robot;
         this.alliance = alliance;
+        tele = new RobotTelemetry(telemetry);
 
-        Telemetry.addBackend(PanelsTelemetry.INSTANCE.getFtcTelemetry());
-
-        robot.bindHardware();
-        // Start pose = export "start" pose.
-        ready = robot.beginAuto(hardwareMap, alliance, startPose);
+        robot.bindHardware(hardwareMap);
+        robot.beginAuto(hardwareMap, alliance, startPose);
         robot.reset();
-        // Like teleop: flywheel at table speed whole auto. Turret aim by default command.
-        robot.shooter.arm();
+        // Flywheel tracks table speed all auto (spins from start); turret and hood track on their own.
+        robot.flywheel.arm();
     }
 
-    /** Auto routine. Add actions between drives. */
+    /** Auto routine. */
     protected abstract Command routine();
 
     @Override
     public void start() {
-        if (ready) {
-            routine().schedule();
-        }
+        routine().schedule();
     }
 
     @Override
     public void disabledPeriodic() {
-        // Goal on robot's side, like teleop. Turret face it before start.
-        robot.pickGoalBySide();
-        robot.shooter.aimTurretAtGoal();
+        // Cell on the robot's side, like teleop. Turret faces it before start.
+        robot.pickCellBySide();
+        robot.aimInInit();
         pushTelemetry();
     }
 
     @Override
     public void periodic() {
-        robot.pickGoalBySide();
+        robot.pickCellBySide();
         pushTelemetry();
     }
 
     private void pushTelemetry() {
-        Telemetry.log("alliance", alliance);
-        Telemetry.log("goal", robot.goal());
-        if (!ready) {
-            Telemetry.log("NOT READY", "follower unavailable — implement pedro/Constants.create()");
+        if (!tele.beginFrame()) {
             return;
         }
         Pose pose = robot.pose();
-        Telemetry.log("x", String.format("%.1f", pose.x()));
-        Telemetry.log("y", String.format("%.1f", pose.y()));
-        Telemetry.log("heading (deg)", String.format("%.1f", Math.toDegrees(pose.heading())));
+        tele.add("alliance / cell", alliance + " / " + robot.cell());
+        tele.add("pose", String.format("%.1f, %.1f, %.1f deg",
+                pose.x(), pose.y(), MathUtil.wrapDegrees(Math.toDegrees(pose.heading()))));
+        tele.detail("ready to shoot", robot.readyToShoot());
+        tele.detail("flywheel", String.format("%.0f / %.0f RPM", robot.flywheel.rpm(), robot.flywheel.targetRpm()));
+        FieldDrawing.robot(pose);
+        tele.endFrame();
     }
 
     @Override
     public void end() {
-        // Cut flywheel direct. Scheduler shutting down.
-        robot.shooter.coastFlywheel();
+        robot.flywheel.reset();
     }
 }

@@ -6,8 +6,8 @@ import com.pedropathing.ivy.Command;
 
 import org.firstinspires.ftc.teamcode.commands.AutoCommands;
 import org.firstinspires.ftc.teamcode.commands.ShootCommands;
-import org.firstinspires.ftc.teamcode.globals.Alliance;
-import org.firstinspires.ftc.teamcode.globals.Robot;
+import org.firstinspires.ftc.teamcode.field.Alliance;
+import org.firstinspires.ftc.teamcode.Robot;
 
 /** 1 tip auto: one shoot spot, then park. Routine for both alliances. */
 public abstract class MainAuto1Tip extends MainAuto {
@@ -23,7 +23,7 @@ public abstract class MainAuto1Tip extends MainAuto {
     protected Command routine() {
         return sequential(
                 // Preload. Turret aimed + flywheel at speed from init.
-                ShootCommands.shootAll(robot),
+                ShootCommands.volley(robot),
 
                 AutoCommands.drive(robot, route.path1()),
 
