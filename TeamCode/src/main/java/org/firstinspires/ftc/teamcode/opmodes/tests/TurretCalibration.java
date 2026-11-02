@@ -47,7 +47,7 @@ public class TurretCalibration extends NextOpMode {
     private long sweepStartNanos = 0;
 
     public TurretCalibration(Robot robot) {
-        super(robot, BulkReadHook.INSTANCE);
+        super(robot, BulkReadHook.INSTANCE, robot.initCheck());
         this.robot = robot;
         tele = new RobotTelemetry(telemetry);
         robot.bindHardware(hardwareMap);

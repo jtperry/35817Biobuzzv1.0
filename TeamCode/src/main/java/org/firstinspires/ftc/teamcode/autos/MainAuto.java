@@ -20,14 +20,15 @@ public abstract class MainAuto extends NextOpMode {
     private final RobotTelemetry tele;
 
     protected MainAuto(Robot robot, Alliance alliance, Pose startPose) {
-        super(robot, BulkReadHook.INSTANCE);
+        super(robot, BulkReadHook.INSTANCE, robot.initCheck());
         this.robot = robot;
         this.alliance = alliance;
         tele = new RobotTelemetry(telemetry);
 
         robot.bindHardware(hardwareMap);
         robot.beginAuto(hardwareMap, alliance, startPose);
-        robot.reset();
+        // Not reset(): an error here must wait for robot.initCheck() to reach the Driver Station.
+        robot.resetInInit();
         // Flywheel tracks table speed all auto (spins from start); turret and hood track on their own.
         robot.flywheel.arm();
     }

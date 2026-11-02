@@ -45,7 +45,7 @@ public class HardwareTest extends NextOpMode {
     private double hoodPosition = Hood.stowPosition();
 
     public HardwareTest(Robot robot) {
-        super(robot, BulkReadHook.INSTANCE);
+        super(robot, BulkReadHook.INSTANCE, robot.initCheck());
         this.robot = robot;
         tele = new RobotTelemetry(telemetry);
         robot.bindHardware(hardwareMap);

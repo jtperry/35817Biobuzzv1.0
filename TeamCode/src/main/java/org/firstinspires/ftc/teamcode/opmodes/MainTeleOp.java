@@ -35,7 +35,7 @@ public class MainTeleOp extends NextOpMode {
     private final boolean fromAuto;
 
     public MainTeleOp(Robot robot) {
-        super(robot, BulkReadHook.INSTANCE);
+        super(robot, BulkReadHook.INSTANCE, robot.initCheck());
         this.robot = robot;
         tele = new RobotTelemetry(telemetry);
 

@@ -59,7 +59,8 @@ public class SharedOctoQuadLocalizer implements Localizer {
 
     /**
      * Wait for RUNNING after reset(), at most RUNNING_TIMEOUT_MS (spec 8). A configured OctoQuad that does not answer
-     * (unplugged, wrong I2C port) never gets there: stop INIT with a message instead of hanging. STOP interrupts this
+     * (unplugged, wrong I2C port) never gets there: stop INIT with a message instead of hanging (Robot.initFollower
+     * keeps it for Robot.initCheck(), which shows it on the Driver Station). STOP interrupts this
      * thread: keep the interrupt flag and return at once, so the OpMode ends the normal way.
      */
     private void waitUntilRunning(String name) {

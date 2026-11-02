@@ -30,10 +30,11 @@ import java.util.Set;
 import dev.nextftc.hardware.actuators.NextMotor;
 import dev.nextftc.robot.Mechanism;
 import dev.nextftc.robot.NextRobot;
+import dev.nextftc.robot.opmode.OpModeHook;
 
 /**
  * The whole robot. NextFTC creates one instance for the app session; each OpMode calls bindHardware()
- * and initFollower() (or beginAuto()) in its constructor.
+ * and initFollower() (or beginAuto()) in its constructor, and passes initCheck() as a hook.
  *
  * Loop order (NextFTC): OpMode periodic (gamepads, drive powers) -> Robot.periodic (one OctoQuad read,
  * battery, one ShotSolution) -> mechanism periodic (motor/servo writes) -> command scheduler -> telemetry.
@@ -58,6 +59,22 @@ public class Robot implements NextRobot {
     private final AutoHandoff handoff = new AutoHandoff();
     private long lastSolveNanos = 0;
 
+    /**
+     * The first INIT error of this OpMode, thrown by initCheck() once the constructor is done. NextFTC builds the
+     * OpMode by reflection, so an exception thrown in its constructor arrives wrapped in an InvocationTargetException,
+     * which the SDK does not catch: the Driver Station never shows its message (the RC app may even restart).
+     */
+    private RuntimeException initError;
+    private final OpModeHook initCheck = new OpModeHook() {
+        @Override
+        public void afterConstruction() {
+            // Read now, not when the hook was built: the hook is a super(...) argument, built before INIT ran.
+            if (initError != null) {
+                throw initError;
+            }
+        }
+    };
+
     // ---------------------------------------------------------------- OpMode setup
 
     /**
@@ -66,6 +83,7 @@ public class Robot implements NextRobot {
      * hardware objects kept from an earlier OpMode would go on writing to its closed devices.
      */
     public void bindHardware(HardwareMap hardwareMap) {
+        initError = null;
         // NextFTC's MotorHook updates every NextMotor in this static loop each cycle: drop the old OpMode's motors
         // (they would pile up and keep writing to stale devices), then make fresh ones.
         NextMotor.Companion.getMotorEventLoop().clear();
@@ -78,10 +96,30 @@ public class Robot implements NextRobot {
         battery.bind(hardwareMap);
     }
 
-    /** Build the follower at a start pose. The follower is required: a missing OctoQuad throws here. */
+    /**
+     * Pass as an OpMode hook: super(robot, BulkReadHook.INSTANCE, robot.initCheck()). NextFTC calls its
+     * afterConstruction() directly, so an INIT error kept by initFollower or resetInInit reaches the SDK as itself and
+     * the Driver Station shows its message.
+     */
+    public OpModeHook initCheck() {
+        return initCheck;
+    }
+
+    /**
+     * Build the follower at a start pose. The follower is required: a missing OctoQuad (or one that never reports
+     * RUNNING) fails here, and the error is kept for initCheck() instead of thrown inside the OpMode constructor.
+     */
     public void initFollower(HardwareMap hardwareMap, Pose startPose) {
         // Only an auto records the pose teleop continues from (beginAuto turns recording back on after this).
         handoff.stopRecording();
+        try {
+            buildFollower(hardwareMap, startPose);
+        } catch (RuntimeException e) {
+            initError = e;
+        }
+    }
+
+    private void buildFollower(HardwareMap hardwareMap, Pose startPose) {
         LimitedMecanum.maxPower = 1.0;
         SharedOctoQuadLocalizer localizer = new SharedOctoQuadLocalizer(hardwareMap, Constants.localizerConfig);
         follower = Constants.create(hardwareMap, localizer);
@@ -98,7 +136,10 @@ public class Robot implements NextRobot {
         alliance = autoAlliance;
         cell = HiveCell.A;
         initFollower(hardwareMap, startPose);
-        handoff.beginAuto(startPose);
+        // A failed INIT never runs, so it leaves no pose for teleop.
+        if (initError == null) {
+            handoff.beginAuto(startPose);
+        }
     }
 
     /** An auto ran and no teleop loop has used its end pose yet. */
@@ -117,6 +158,18 @@ public class Robot implements NextRobot {
      */
     public void clearAutoHandoff() {
         handoff.clear();
+    }
+
+    /** reset() from an OpMode constructor: skipped after an earlier INIT error, and its own error kept for initCheck(). */
+    public void resetInInit() {
+        if (initError != null) {
+            return;
+        }
+        try {
+            reset();
+        } catch (RuntimeException e) {
+            initError = e;
+        }
     }
 
     /** Every mechanism to a known state. */
