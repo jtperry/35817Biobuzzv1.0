@@ -144,6 +144,7 @@ public class RobotInitCheckTest {
         assertTrue(robot.hasAutoHandoff());
         assertEquals(start.x(), robot.handoffPose().x(), 0.0);
         assertEquals(start.y(), robot.handoffPose().y(), 0.0);
+        assertEquals(start.heading(), robot.handoffPose().heading(), 0.0);
         assertSame(scripted.resetError, afterConstruction());
     }
 

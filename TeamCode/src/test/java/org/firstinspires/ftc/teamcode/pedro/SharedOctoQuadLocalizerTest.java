@@ -37,7 +37,7 @@ public class SharedOctoQuadLocalizerTest {
         SharedOctoQuadLocalizer.RUNNING_TIMEOUT_MS = savedTimeoutMs;
     }
 
-    private SharedOctoQuadLocalizer init() {
+    private HardwareMap hardwareMap() {
         OctoQuad octoQuad = (OctoQuad) Proxy.newProxyInstance(OctoQuad.class.getClassLoader(),
                 new Class<?>[] {OctoQuad.class}, (proxy, method, args) -> {
                     if (method.getName().equals("getLocalizerStatus")) {
@@ -52,14 +52,19 @@ public class SharedOctoQuadLocalizerTest {
                 return classOrInterface.cast(octoQuad);
             }
         };
-        return new SharedOctoQuadLocalizer(hardwareMap, Constants.localizerConfig);
+        return hardwareMap;
+    }
+
+    private SharedOctoQuadLocalizer init() {
+        return new SharedOctoQuadLocalizer(hardwareMap(), Constants.localizerConfig);
     }
 
     /** Expects INIT to stop with a message after the timeout; returns the message. */
     private String initFailure() {
+        HardwareMap hardwareMap = hardwareMap();
         long start = System.nanoTime();
         try {
-            init();
+            new SharedOctoQuadLocalizer(hardwareMap, Constants.localizerConfig);
         } catch (IllegalStateException e) {
             double seconds = (System.nanoTime() - start) / 1e9;
             assertTrue("gave up after " + seconds + " s", seconds >= TIMEOUT_MS / 1000 && seconds < 2.0);
@@ -91,7 +96,8 @@ public class SharedOctoQuadLocalizerTest {
         statuses = new LocalizerStatus[] {LocalizerStatus.CALIBRATING_IMU};
         String message = initFailure();
         assertTrue(message, message.contains("CALIBRATING_IMU"));
-        assertTrue(message, message.contains("RUNNING_TIMEOUT_MS"));
+        assertTrue(message, message.contains("SharedOctoQuadLocalizer.RUNNING_TIMEOUT_MS"));
+        assertTrue(message, message.contains("Panels"));
     }
 
     @Test(timeout = 10000)
@@ -100,11 +106,12 @@ public class SharedOctoQuadLocalizerTest {
         // STOP during INIT: the SDK interrupts the OpMode thread.
         Thread.currentThread().interrupt();
         try {
+            HardwareMap hardwareMap = hardwareMap();
             long start = System.nanoTime();
-            init();
+            new SharedOctoQuadLocalizer(hardwareMap, Constants.localizerConfig);
             double seconds = (System.nanoTime() - start) / 1e9;
             assertTrue("interrupt flag kept", Thread.currentThread().isInterrupted());
-            assertTrue("returned after " + seconds + " s", seconds < TIMEOUT_MS / 1000);
+            assertTrue("returned after " + seconds + " s", seconds < 0.5);
         } finally {
             // This is the timed test thread (the runner thread's @After cannot clear it): never leave the flag set.
             Thread.interrupted();
