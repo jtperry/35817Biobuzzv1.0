@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import dev.nextftc.hardware.actuators.NextMotor;
 import dev.nextftc.robot.Mechanism;
 import dev.nextftc.robot.NextRobot;
 
@@ -60,8 +61,17 @@ public class Robot implements NextRobot {
 
     // ---------------------------------------------------------------- OpMode setup
 
-    /** Fresh servo objects and battery sensor. Call first in every OpMode constructor. */
+    /**
+     * Fresh motor and servo objects and the battery sensor. Call first in every OpMode constructor. This Robot lives
+     * for the app session, but a Driver Station "Restart Robot" or a config activation builds a new hardware map, and
+     * hardware objects kept from an earlier OpMode would go on writing to its closed devices.
+     */
     public void bindHardware(HardwareMap hardwareMap) {
+        // NextFTC's MotorHook updates every NextMotor in this static loop each cycle: drop the old OpMode's motors
+        // (they would pile up and keep writing to stale devices), then make fresh ones.
+        NextMotor.Companion.getMotorEventLoop().clear();
+        flywheel.bindMotors();
+        intake.bindMotors();
         turret.bindServos();
         hood.bindServos();
         intake.bindServos();

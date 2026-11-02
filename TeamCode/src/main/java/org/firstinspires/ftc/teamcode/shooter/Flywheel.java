@@ -52,10 +52,8 @@ public class Flywheel implements Mechanism {
 
     public enum Mode { OFF, IDLE, ARMED, FIXED, RAW }
 
-    private final NextMotor motor1 =
-            new NextMotor(MOTOR_1, Units.Rotations.of(1.0 / COUNTS_PER_REV), POWER_CACHE_TOLERANCE);
-    private final NextMotor motor2 =
-            new NextMotor(MOTOR_2, Units.Rotations.of(1.0 / COUNTS_PER_REV), POWER_CACHE_TOLERANCE);
+    private NextMotor motor1;
+    private NextMotor motor2;
     private final Battery battery;
     private final Debouncer atSpeedDebouncer =
             new Debouncer(AT_SPEED_DEBOUNCE_S, Debouncer.DebounceType.RISING);
@@ -80,8 +78,19 @@ public class Flywheel implements Mechanism {
 
     public Flywheel(Battery battery) {
         this.battery = battery;
-        // Float, not the hub default (brake): a braked motor at 0 power drags the flywheel the other motor drives,
-        // and a braked flywheel stops hard on off(). Set explicitly: NextMotor's own FLOAT default is never sent.
+        bindMotors();
+    }
+
+    /**
+     * Fresh motor objects each OpMode (Robot.bindHardware). A NextMotor looks its device up once and keeps it, and
+     * after a Driver Station "Restart Robot" or a config activation that device belongs to a closed hardware map.
+     */
+    public void bindMotors() {
+        motor1 = new NextMotor(MOTOR_1, Units.Rotations.of(1.0 / COUNTS_PER_REV), POWER_CACHE_TOLERANCE);
+        motor2 = new NextMotor(MOTOR_2, Units.Rotations.of(1.0 / COUNTS_PER_REV), POWER_CACHE_TOLERANCE);
+        // Float: a braked motor at 0 power would drag the flywheel the other motor drives, and off() coasts down.
+        // The SDK already floats every hub motor before each OpMode (LynxDcMotorController.initializeHardware ->
+        // floatHardware), so these two calls are redundant but harmless.
         motor1.setZeroPowerBehavior(NextMotor.ZeroPowerBehavior.FLOAT);
         motor2.setZeroPowerBehavior(NextMotor.ZeroPowerBehavior.FLOAT);
     }
@@ -108,9 +117,8 @@ public class Flywheel implements Mechanism {
         atSpeed = false;
         atSpeedDebouncer.calculate(false);
         writePowers(0, 0);
-        // The SDK zeroes the motors at every OpMode init, but these NextMotors live for the app session and their
-        // write cache still holds the last OpMode's power. Push 0 now so cache = hardware, else a first 1.0 that
-        // matches a stale cached 1.0 is never written and the flywheel stays dead.
+        // Send the 0 now, not at the next MotorHook poll: reset() also runs from end(), after the last poll. (The
+        // motors are fresh each OpMode, see bindMotors(), so their write cache never holds an old OpMode's power.)
         motor1.update();
         motor2.update();
     }

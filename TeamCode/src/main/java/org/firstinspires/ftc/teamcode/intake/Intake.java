@@ -37,15 +37,22 @@ public class Intake implements Mechanism {
     /** Stages wait this long after the gate opens. */
     public static double GATE_OPEN_DELAY_MS = 100;
 
-    private final NextMotor stage1 = new NextMotor(STAGE1);
-    private final NextMotor stage2 = new NextMotor(STAGE2);
+    private NextMotor stage1;
+    private NextMotor stage2;
     private NextServo gate;
     private boolean gateOpen = false;
     /** Gate positions go to the servo. A unit test swaps this to run without hardware. */
     DoubleConsumer gateOutput = position -> gate.setPosition(position);
 
     public Intake() {
+        bindMotors();
         bindServos();
+    }
+
+    /** Fresh motor objects each OpMode (Robot.bindHardware), for the same reason as Flywheel.bindMotors(). */
+    public void bindMotors() {
+        stage1 = new NextMotor(STAGE1);
+        stage2 = new NextMotor(STAGE2);
     }
 
     /** Fresh servo object each OpMode. */
@@ -56,6 +63,9 @@ public class Intake implements Mechanism {
     /** Known state: stages off, gate closed. */
     public void reset() {
         runStages(0, 0);
+        // Send the 0 now, like Flywheel.reset(), so the hub and NextMotor's write cache agree from here on.
+        stage1.update();
+        stage2.update();
         setGate(false);
     }
 
