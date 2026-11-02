@@ -21,8 +21,10 @@ public class Constants {
         c.xPodPort.set(1);
         c.yPodPort.set(0);
         c.ticksPerUnit.set(505.316944406);
-        c.xPodOffset.set(-3.14);
-        c.yPodOffset.set(-3.72);
+        // CAD (spec 4.6): forward pod 3.72 in right of center, strafe pod 3.14 in behind center.
+        // v1 had these two numbers swapped.
+        c.xPodOffset.set(-3.72);
+        c.yPodOffset.set(-3.14);
         c.xPodDirection.set(OctoQuad.EncoderDirection.FORWARD);
         c.yPodDirection.set(OctoQuad.EncoderDirection.FORWARD);
         c.globalDistanceUnit.set(DistanceUnit.INCH);
