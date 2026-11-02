@@ -15,6 +15,11 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 /** Pedro OctoQuad localizer. Also grab all encoder ports, same I2C read. */
 public class SharedOctoQuadLocalizer implements Localizer {
+    /** Longest wait for RUNNING after a reset (IMU warm-up and calibration). */
+    private static final long RUNNING_TIMEOUT_MS = 2000;
+    /** Pause between status reads while waiting. */
+    private static final long STATUS_POLL_MS = 10;
+
     private final LocalizerDataBlock localizer = new LocalizerDataBlock();
     private final EncoderDataBlock encoders = new EncoderDataBlock();
     public final OctoQuad octoQuad;
@@ -47,9 +52,48 @@ public class SharedOctoQuadLocalizer implements Localizer {
 
         reset();
 
-        while (octoQuad.getLocalizerStatus() != LocalizerStatus.RUNNING) {}
+        waitUntilRunning(config.name.get());
 
         update();
+    }
+
+    /**
+     * Wait for RUNNING after reset(), at most RUNNING_TIMEOUT_MS (spec 8). A configured OctoQuad that does not answer
+     * (unplugged, wrong I2C port) never gets there: stop INIT with a message instead of hanging. STOP interrupts this
+     * thread: keep the interrupt flag and return at once, so the OpMode ends the normal way.
+     */
+    private void waitUntilRunning(String name) {
+        long start = System.nanoTime();
+        LocalizerStatus status;
+        while ((status = octoQuad.getLocalizerStatus()) != LocalizerStatus.RUNNING) {
+            if (Thread.currentThread().isInterrupted()) {
+                return;
+            }
+            if (System.nanoTime() - start >= RUNNING_TIMEOUT_MS * 1_000_000L) {
+                throw new IllegalStateException("OctoQuad '" + name + "' localizer not RUNNING after "
+                        + RUNNING_TIMEOUT_MS + " ms (status " + status + "): " + notRunningHint(status, name));
+            }
+            try {
+                Thread.sleep(STATUS_POLL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+    }
+
+    private static String notRunningHint(LocalizerStatus status, String name) {
+        switch (status) {
+            case WARMING_UP_IMU:
+            case CALIBRATING_IMU:
+                return "it answers but the IMU is still calibrating. Keep the robot still during INIT; if this repeats,"
+                        + " raise RUNNING_TIMEOUT_MS in SharedOctoQuadLocalizer.";
+            case FAULT_NO_IMU:
+                return "it reports no working IMU. Check the OctoQuad firmware.";
+            default:
+                return "it is not answering. Check its cable and power, the I2C port it is on, and that the robot"
+                        + " configuration names it '" + name + "'.";
+        }
     }
 
     @Override
