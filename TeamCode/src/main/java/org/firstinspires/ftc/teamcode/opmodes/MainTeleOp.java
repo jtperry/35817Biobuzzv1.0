@@ -44,7 +44,7 @@ public class MainTeleOp extends NextOpMode {
         if (!fromAuto) {
             robot.setCell(HiveCell.A);
         }
-        robot.initFollower(hardwareMap, robot.takeHandoffPose());
+        robot.initFollower(hardwareMap, robot.handoffPose());
         // No reset here: init never moves servos. Reset in start().
 
         driver = new CommandGamepad(gamepad1);
@@ -132,6 +132,8 @@ public class MainTeleOp extends NextOpMode {
 
     @Override
     public void periodic() {
+        // Teleop really runs now: the auto pose is used up (a STOP during INIT left it for the next INIT).
+        robot.clearAutoHandoff();
         drive();
         robot.pickCellBySide();
         pushTelemetry();

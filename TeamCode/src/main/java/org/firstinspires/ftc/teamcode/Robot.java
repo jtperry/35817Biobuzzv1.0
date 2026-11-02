@@ -55,8 +55,7 @@ public class Robot implements NextRobot {
     private Alliance alliance = Alliance.BLUE;
     private HiveCell cell = HiveCell.A;
     private int restartSlot = 0;
-    private Pose lastPose = Field.startPose(Alliance.BLUE);
-    private boolean autoHandoffPending = false;
+    private final AutoHandoff handoff = new AutoHandoff();
     private long lastSolveNanos = 0;
 
     // ---------------------------------------------------------------- OpMode setup
@@ -81,12 +80,13 @@ public class Robot implements NextRobot {
 
     /** Build the follower at a start pose. The follower is required: a missing OctoQuad throws here. */
     public void initFollower(HardwareMap hardwareMap, Pose startPose) {
+        // Only an auto records the pose teleop continues from (beginAuto turns recording back on after this).
+        handoff.stopRecording();
         LimitedMecanum.maxPower = 1.0;
         SharedOctoQuadLocalizer localizer = new SharedOctoQuadLocalizer(hardwareMap, Constants.localizerConfig);
         follower = Constants.create(hardwareMap, localizer);
         flywheel.useOctoQuad(localizer);
         follower.setPose(startPose);
-        lastPose = startPose;
         LimitedMecanum.velocity = follower::velocity;
         LimitedMecanum.heading = () -> follower.pose().heading();
         solver.reset();
@@ -98,18 +98,25 @@ public class Robot implements NextRobot {
         alliance = autoAlliance;
         cell = HiveCell.A;
         initFollower(hardwareMap, startPose);
-        autoHandoffPending = true;
+        handoff.beginAuto(startPose);
     }
 
+    /** An auto ran and no teleop loop has used its end pose yet. */
     public boolean hasAutoHandoff() {
-        return autoHandoffPending;
+        return handoff.pending();
     }
 
-    /** Teleop start pose: where auto ended, else slot 0 for the alliance. One use. */
-    public Pose takeHandoffPose() {
-        Pose pose = autoHandoffPending ? lastPose : Field.startPose(alliance);
-        autoHandoffPending = false;
-        return pose;
+    /** Teleop start pose: where auto ended, else slot 0 for the alliance. Read at INIT; does not use it up. */
+    public Pose handoffPose() {
+        return handoff.poseOr(Field.startPose(alliance));
+    }
+
+    /**
+     * Teleop's first loop: the auto pose is used up. Not in start(): NextFTC also calls start() after a STOP during
+     * INIT, and that teleop never ran.
+     */
+    public void clearAutoHandoff() {
+        handoff.clear();
     }
 
     /** Every mechanism to a known state. */
@@ -126,7 +133,7 @@ public class Robot implements NextRobot {
     @Override
     public void periodic() {
         follower.update();
-        lastPose = follower.pose();
+        handoff.record(follower.pose());
         battery.update();
         solveShot();
     }
@@ -228,7 +235,6 @@ public class Robot implements NextRobot {
         Pose pose = Field.restartPose(alliance, restartSlot);
         follower.setPose(pose);
         follower.hold(pose);
-        lastPose = pose;
         solver.reset();
     }
 
