@@ -61,10 +61,9 @@ public class MainTeleOp extends NextOpMode {
         operator.dpadDown().onTrue(Commands.instant(() -> robot.resetPoseToSlot(4)));
         operator.x().onTrue(Commands.instant(() -> robot.resetPoseToSlot(5)));
 
-        // Hold RT = feed, gated per ball. Release = gate closed, stages off.
-        driver.rightTrigger().isOver(0.5)
-                .whileTrue(ShootCommands.whileHeld(robot))
-                .onFalse(robot.intake.stopFeed());
+        // Hold RT = feed, gated per ball. Release = gate closed, stages off (the feed's end handler), so releasing RT
+        // never cancels an intake (LB) or eject (RB) that took over the stages.
+        driver.rightTrigger().isOver(0.5).whileTrue(ShootCommands.whileHeld(robot));
         driver.leftBumper().whileTrue(robot.intake.intake());
         driver.rightBumper().whileTrue(robot.intake.eject());
         driver.a().onTrue(Commands.instant(robot.flower::toggle));

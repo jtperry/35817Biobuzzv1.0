@@ -22,7 +22,7 @@ public class FeedGateTest {
         ShootCommands.DIP_RPM = 150;
         ShootCommands.READY_TIMEOUT_MS = 2000;
         ShootCommands.VOLLEY_FEED_MS = 1000;
-        ShootCommands.VOLLEY_TIMEOUT_MS = 3500;
+        ShootCommands.VOLLEY_TIMEOUT_MS = 5000;
         ready = false;
         aimSettled = true;
         rpmDeficit = 0;
@@ -140,11 +140,14 @@ public class FeedGateTest {
         assertTrue(gate.volleyDone());
 
         gate.reset();
+        long volleyStart = nowNanos;
         ready = false;
         aimSettled = false;
         at(1000);
         assertFalse(gate.volleyDone());
-        nowNanos = 1000 * MS + 4500 * MS;
+        nowNanos = volleyStart + 4999 * MS;
+        assertFalse(gate.volleyDone());
+        nowNanos = volleyStart + 5000 * MS;
         assertTrue(gate.volleyDone());
     }
 }

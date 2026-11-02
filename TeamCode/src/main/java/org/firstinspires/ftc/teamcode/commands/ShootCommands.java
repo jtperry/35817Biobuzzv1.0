@@ -26,8 +26,8 @@ public final class ShootCommands {
     /** A volley ends after this much actual feeding time... */
     public static double VOLLEY_FEED_MS = 1000;
 
-    /** ...or after this long in total. */
-    public static double VOLLEY_TIMEOUT_MS = 3500;
+    /** ...or after this long in total. Worst case with forcing: 2 s first wait + 2 s later pause + 1 s feeding. */
+    public static double VOLLEY_TIMEOUT_MS = 5000;
 
     private ShootCommands() {
     }
@@ -40,7 +40,10 @@ public final class ShootCommands {
                 .then(robot.intake.stopFeed());
     }
 
-    /** Feed while held. Bind with whileTrue(...) and onFalse(robot.intake.stopFeed()). */
+    /**
+     * Feed while held. Bind with whileTrue(...): release cancels it, and the feed's end handler closes the gate and
+     * stops the stages.
+     */
     public static Command whileHeld(Robot robot) {
         FeedGate gate = new FeedGate(robot);
         return Commands.instant(gate::reset).then(robot.intake.feed(gate::feeding));
