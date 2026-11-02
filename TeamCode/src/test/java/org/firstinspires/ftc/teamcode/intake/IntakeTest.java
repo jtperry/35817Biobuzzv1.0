@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.Scheduler;
+import com.pedropathing.ivy.commands.Commands;
 
 import org.junit.After;
 import org.junit.Before;
@@ -73,6 +74,34 @@ public class IntakeTest {
         Scheduler.execute();
         assertTrue(intake.isGateOpen());
         feed.cancel();
+        assertFalse(intake.isGateOpen());
+        assertEquals(Intake.GATE_CLOSED_POSITION, gatePosition, EPS);
+    }
+
+    /** Same shape as ShootCommands.whileHeld: a step, then the feed. */
+    private Command heldFeed() {
+        Command held = Commands.instant(() -> { }).then(intake.feed(() -> true));
+        held.schedule();
+        for (int i = 0; i < 3 && !intake.isGateOpen(); i++) {
+            Scheduler.execute();
+        }
+        assertTrue(intake.isGateOpen());
+        return held;
+    }
+
+    @Test
+    public void intakeOverridingAHeldFeedSequenceClosesTheGate() {
+        heldFeed();
+        intake.intake().schedule();
+        Scheduler.execute();
+        assertFalse(intake.isGateOpen());
+        assertEquals(Intake.GATE_CLOSED_POSITION, gatePosition, EPS);
+    }
+
+    @Test
+    public void cancellingAHeldFeedSequenceClosesTheGate() {
+        Command held = heldFeed();
+        held.cancel();
         assertFalse(intake.isGateOpen());
         assertEquals(Intake.GATE_CLOSED_POSITION, gatePosition, EPS);
     }
