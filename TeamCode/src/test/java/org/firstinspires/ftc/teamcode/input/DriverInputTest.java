@@ -39,6 +39,22 @@ public class DriverInputTest {
     }
 
     @Test
+    public void deadzoneOfOneOrMoreFromPanelsStaysFinite() {
+        DriverInput.DEADZONE = 1.0;
+        double diagonal = DriverInput.stickScale(1, 1);
+        assertEquals(1.0, Math.hypot(diagonal, diagonal), EPS);
+        DriverInput.TURN_DEADZONE = 1.5;
+        assertEquals(1.0, DriverInput.turn(1.0), EPS);
+        assertEquals(-1.0, DriverInput.turn(-1.0), EPS);
+    }
+
+    @Test
+    public void negativeDeadzoneFromPanelsKeepsARestingStickStill() {
+        DriverInput.TURN_DEADZONE = -0.5;
+        assertEquals(0.0, DriverInput.turn(0.0), EPS);
+    }
+
+    @Test
     public void curveTwoSquaresTheOutput() {
         DriverInput.CURVE = 2.0;
         assertEquals(0.25, 0.54 * DriverInput.stickScale(0.54, 0), EPS);

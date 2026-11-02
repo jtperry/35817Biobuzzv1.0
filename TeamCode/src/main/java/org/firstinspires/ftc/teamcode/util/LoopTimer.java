@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.util;
 
 import java.util.Arrays;
+import java.util.Locale;
 
 /**
  * Loop-time stats over a sliding window: mean, 95th percentile and max, in milliseconds.
@@ -83,8 +84,8 @@ public final class LoopTimer {
         return count;
     }
 
-    /** "mean 12.3 / p95 15.1 / max 22.0 ms (180 loops)" from the last compute(). */
+    /** "mean 12.3 / p95 15.1 / max 22.0 ms (180 loops)" from the last compute(); always a dot (Locale.US). */
     public String summary() {
-        return String.format("mean %.1f / p95 %.1f / max %.1f ms (%d loops)", meanMs, p95Ms, maxMs, count);
+        return String.format(Locale.US, "mean %.1f / p95 %.1f / max %.1f ms (%d loops)", meanMs, p95Ms, maxMs, count);
     }
 }

@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
+import java.util.Locale;
+
 public class LoopTimerTest {
 
     private static final long MS = 1_000_000L;
@@ -51,6 +53,21 @@ public class LoopTimerTest {
         }
         timer.compute();
         assertEquals(51, timer.count());
+    }
+
+    @Test
+    public void summaryUsesADotWhateverTheDefaultLocale() {
+        Locale saved = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.GERMANY);
+            LoopTimer timer = new LoopTimer(2.0);
+            timer.tick(0);
+            timer.tick(12_500_000L);
+            timer.compute();
+            assertEquals("mean 12.5 / p95 12.5 / max 12.5 ms (1 loops)", timer.summary());
+        } finally {
+            Locale.setDefault(saved);
+        }
     }
 
     @Test

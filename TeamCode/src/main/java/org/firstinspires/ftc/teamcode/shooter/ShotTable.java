@@ -57,7 +57,8 @@ public final class ShotTable {
     /** v1 estimate: exit speed = flywheel surface speed x efficiency, on the low arc that reaches cell height. */
     static double physicsFlightTimeS(double distanceIn, double rpm) {
         double speed = BALL_EXIT_EFFICIENCY * Math.PI * FLYWHEEL_DIAMETER_IN * rpm / 60.0;
-        if (speed <= 0 || distanceIn <= 0) {
+        // Written as !(x > 0) so a NaN input gives 0 too.
+        if (!(speed > 0) || !(distanceIn > 0)) {
             return 0;
         }
         double g = GRAVITY_IN_PER_S2;

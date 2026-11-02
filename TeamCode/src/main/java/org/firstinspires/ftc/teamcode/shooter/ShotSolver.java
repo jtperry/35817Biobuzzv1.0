@@ -68,7 +68,11 @@ public final class ShotSolver {
         return solution;
     }
 
-    /** One loop. Pose and velocity in the field frame (in, rad, in/s, rad/s); dtS = seconds since the previous call. A non-finite input resets the filters and returns the last solution unchanged. */
+    /**
+     * One loop. Pose and velocity in the field frame (in, rad, in/s, rad/s); dtS = seconds since the previous call.
+     * A non-finite input calls reset() (acceleration and turret-rate filters cleared, turret rate zeroed) and returns
+     * the last solution, unchanged apart from that zero turret rate.
+     */
     public ShotSolution update(double x, double y, double heading, double vx, double vy, double omega,
                                double dtS, double cellX, double cellY) {
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(heading)
