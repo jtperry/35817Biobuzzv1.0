@@ -162,6 +162,9 @@ public class MainTeleOp extends NextOpMode {
         tele.add("alliance / cell", robot.alliance() + " / " + robot.cell());
         tele.add("pose", formatPose(pose));
         tele.add("ready", robot.readyToShoot());
+        // The parts of "ready", so a feed that will not start shows what it waits for.
+        tele.detail("at speed / turret settled / hood settled", robot.flywheel.atSpeed() + " / "
+                + robot.turret.settled() + " / " + robot.hood.settled());
         tele.add("flywheel", String.format("%s  %.0f / %.0f RPM",
                 robot.flywheel.mode(), robot.flywheel.rpm(), robot.flywheel.targetRpm()));
         tele.detail("distance (in)", String.format("%.1f", shot.distanceIn));
@@ -171,6 +174,7 @@ public class MainTeleOp extends NextOpMode {
         tele.detail("velocity x / y (in/s)", String.format("%.1f / %.1f", velocity.vx, velocity.vy));
         tele.detail("release speed (in/s)", String.format("%.1f", shot.releaseSpeed));
         tele.detail("battery (V)", String.format("%.2f", robot.battery.volts()));
+        tele.detail("OctoQuad bad reads", robot.flywheel.badReads());
         tele.detail("gate / flower", (robot.intake.isGateOpen() ? "open" : "closed") + " / "
                 + (robot.flower.isDeployed() ? "deployed" : "stowed"));
         tele.detail("restart slot", robot.restartSlot() + " " + Field.RESTART_SLOT_NAMES[robot.restartSlot()]);
