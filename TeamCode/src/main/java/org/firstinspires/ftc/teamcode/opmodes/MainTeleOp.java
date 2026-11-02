@@ -1,51 +1,51 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
-import org.firstinspires.ftc.teamcode.commands.ShootCommands;
-import org.firstinspires.ftc.teamcode.globals.Alliance;
-import org.firstinspires.ftc.teamcode.globals.Constants;
-import org.firstinspires.ftc.teamcode.globals.Goal;
-import org.firstinspires.ftc.teamcode.globals.Robot;
-
 import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.ManualDrive;
 import com.pedropathing.ivy.commands.Commands;
 import com.pedropathing.math.Pose;
+import com.pedropathing.math.Velocity;
 
-import com.bylazar.telemetry.PanelsTelemetry;
+import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.commands.ShootCommands;
+import org.firstinspires.ftc.teamcode.field.Alliance;
+import org.firstinspires.ftc.teamcode.field.Field;
+import org.firstinspires.ftc.teamcode.field.HiveCell;
+import org.firstinspires.ftc.teamcode.input.DriverInput;
+import org.firstinspires.ftc.teamcode.shooter.ShotSolution;
+import org.firstinspires.ftc.teamcode.util.FieldDrawing;
+import org.firstinspires.ftc.teamcode.util.MathUtil;
+import org.firstinspires.ftc.teamcode.util.RobotTelemetry;
 
-import dev.nextftc.robot.Telemetry;
 import dev.nextftc.robot.opmode.BulkReadHook;
 import dev.nextftc.robot.opmode.NextOpMode;
 import dev.nextftc.robot.opmode.NextTeleop;
 import dev.nextftc.robot.triggers.CommandGamepad;
 
-/** Main driver OpMode. */
+/** Main driver OpMode. Buttons by position, so Xbox and PS pads behave the same. */
 @NextTeleop(name = "Main TeleOp")
 public class MainTeleOp extends NextOpMode {
 
     private final Robot robot;
+    private final RobotTelemetry tele;
     private final CommandGamepad driver;
     private final CommandGamepad operator;
 
-    /** Got alliance + pose from auto. */
+    /** Alliance and pose came from auto. */
     private final boolean fromAuto;
 
     public MainTeleOp(Robot robot) {
-        super(robot, BulkReadHook.INSTANCE);
+        super(robot, BulkReadHook.INSTANCE, robot.initCheck());
         this.robot = robot;
+        tele = new RobotTelemetry(telemetry);
 
-        // Telemetry to Panels + Driver Hub. Safe to add every OpMode.
-        Telemetry.addBackend(PanelsTelemetry.INSTANCE.getFtcTelemetry());
-
-        robot.bindHardware();
-        // After auto: same alliance, start where auto end.
-        // Else default pose, pick alliance in init.
+        robot.bindHardware(hardwareMap);
         fromAuto = robot.hasAutoHandoff();
         if (!fromAuto) {
-            robot.setGoal(Goal.A);
+            robot.setCell(HiveCell.A);
         }
-        robot.initFollower(hardwareMap, robot.takeHandoffPose());
-        // No reset here. Init no move servos. Reset in start().
+        robot.initFollower(hardwareMap, robot.handoffPose());
+        // No reset here: init never moves servos. Reset in start().
 
         driver = new CommandGamepad(gamepad1);
         operator = new CommandGamepad(gamepad2);
@@ -53,10 +53,7 @@ public class MainTeleOp extends NextOpMode {
     }
 
     private void bindControls() {
-        // Operator: press to reset pose to that spot.
-        // B = right, X = left, dpad right = right-flower, dpad left = left-flower,
-        // dpad up = top-flower, dpad down = bottom-flower.
-        // Red = blue spots mirrored across x = 72 and y = 72 (180 deg turn).
+        // Operator: reset pose to a restart slot. B = right, X = left, dpad = the four flower slots.
         operator.b().onTrue(Commands.instant(() -> robot.resetPoseToSlot(0)));
         operator.dpadRight().onTrue(Commands.instant(() -> robot.resetPoseToSlot(1)));
         operator.dpadLeft().onTrue(Commands.instant(() -> robot.resetPoseToSlot(2)));
@@ -64,51 +61,34 @@ public class MainTeleOp extends NextOpMode {
         operator.dpadDown().onTrue(Commands.instant(() -> robot.resetPoseToSlot(4)));
         operator.x().onTrue(Commands.instant(() -> robot.resetPoseToSlot(5)));
 
-        // Hold = feed all balls. Release = gate closed, stages off.
-        driver.rightTrigger().isOver(0.5)
-                .whileTrue(ShootCommands.shootWhileHeld(robot))
-                .onFalse(robot.intake.stopFeed());
-
+        // Hold RT = feed, gated per ball. Release = gate closed, stages off (the feed's end handler), so releasing RT
+        // never cancels an intake (LB) or eject (RB) that took over the stages.
+        driver.rightTrigger().isOver(0.5).whileTrue(ShootCommands.whileHeld(robot));
         driver.leftBumper().whileTrue(robot.intake.intake());
         driver.rightBumper().whileTrue(robot.intake.eject());
+        driver.a().onTrue(Commands.instant(robot.flower::toggle));
+        driver.x().onTrue(Commands.instant(robot.flywheel::toggleArmed));
 
-        driver.a().onTrue(robot.intake.toggleFlower());
-
-        // Not toggleOnTrue: spinUp() instant, nothing to cancel.
-        driver.x().onTrue(Commands.conditional(
-                robot.shooter::isArmed,
-                robot.shooter.idleFlywheel(),
-                robot.shooter.spinUp()));
-
-        driver.dpadLeft().onTrue(robot.shooter.trimTurret(-Constants.TURRET_TRIM_STEP_DEG));
-        driver.dpadRight().onTrue(robot.shooter.trimTurret(Constants.TURRET_TRIM_STEP_DEG));
-
-        driver.dpadUp().onTrue(robot.shooter.trimHood(Constants.HOOD_TRIM_STEP));
-        driver.dpadDown().onTrue(robot.shooter.trimHood(-Constants.HOOD_TRIM_STEP));
-
-        // Clear turret override + trims.
-        driver.back().onTrue(robot.shooter.resumeAutoAim());
+        // Trims, same directions as v1.
+        driver.dpadLeft().onTrue(Commands.instant(() -> robot.turret.trimStep(-1)));
+        driver.dpadRight().onTrue(Commands.instant(() -> robot.turret.trimStep(1)));
+        driver.dpadUp().onTrue(Commands.instant(() -> robot.hood.trimStep(1)));
+        driver.dpadDown().onTrue(Commands.instant(() -> robot.hood.trimStep(-1)));
+        driver.back().onTrue(Commands.instant(() -> {
+            robot.turret.clearTrim();
+            robot.hood.clearTrim();
+        }));
     }
 
     @Override
     public void disabledPeriodic() {
-        // Triggers no poll in init. Read gamepad direct.
-        // Only when no auto handoff.
+        // Triggers do not poll in init: read the pads directly. Only when there was no auto.
         if (!fromAuto) {
             if (gamepad1.dpad_left) {
                 robot.setAlliance(Alliance.BLUE);
             } else if (gamepad1.dpad_right) {
                 robot.setAlliance(Alliance.RED);
             }
-            Telemetry.log("alliance", robot.alliance() + "   (dpad left = BLUE, right = RED)");
-            Telemetry.log("start pose", "default");
-        } else {
-            Telemetry.log("alliance", robot.alliance() + "   (from auto)");
-            Telemetry.log("start pose", "where auto ended");
-        }
-        // Init restart slot pick on operator pad (direct read, triggers no poll in init).
-        // B = 0 right, X = 5 left, dpad right/left/up/down = right/left/top/bottom-flower.
-        if (!fromAuto) {
             if (gamepad2.b) {
                 robot.setRestartSlot(0);
             } else if (gamepad2.dpad_right) {
@@ -122,76 +102,88 @@ public class MainTeleOp extends NextOpMode {
             } else if (gamepad2.x) {
                 robot.setRestartSlot(5);
             }
-            Pose selected = Constants.restartPose(robot.alliance(), robot.restartSlot());
-            Telemetry.log("restart slot", robot.restartSlot() + " "
-                    + Constants.RESTART_SLOT_NAMES[robot.restartSlot()]
-                    + " (opad B/X/dpad)");
-            Telemetry.log("restart pose", String.format("%.1f, %.1f, %.0f deg",
-                    selected.x(), selected.y(), Math.toDegrees(selected.heading())));
         }
+        if (!tele.beginFrame()) {
+            return;
+        }
+        if (fromAuto) {
+            tele.add("alliance", robot.alliance() + "   (from auto)");
+            tele.add("start pose", "where auto ended");
+        } else {
+            tele.add("alliance", robot.alliance() + "   (dpad left = BLUE, right = RED)");
+            tele.add("restart slot", robot.restartSlot() + " " + Field.RESTART_SLOT_NAMES[robot.restartSlot()]
+                    + "   (gamepad 2: B / X / dpad)");
+            tele.add("restart pose", formatPose(Field.restartPose(robot.alliance(), robot.restartSlot())));
+        }
+        tele.endFrame();
     }
 
     @Override
     public void start() {
-        // No auto: alliance + slot picked in init now. Start spot for that side.
+        // No auto: alliance + slot picked in init. Start there.
         if (!fromAuto) {
             robot.resetPoseToStart();
         }
-        // Servos to known state now, after play.
+        // Servos to a known state now, after play.
         robot.reset();
-        // Flywheel stay at shoot speed whole match. Shot instant.
-        robot.shooter.arm();
+        // Flywheel at shot speed the whole match.
+        robot.flywheel.arm();
     }
 
     @Override
     public void periodic() {
+        // Teleop really runs now: the auto pose is used up (a STOP during INIT left it for the next INIT).
+        robot.clearAutoHandoff();
         drive();
-        robot.pickGoalBySide();
+        robot.pickCellBySide();
         pushTelemetry();
     }
 
     private void drive() {
-        if (robot.follower() == null) {
-            return;
-        }
-
-        // follower.update() run after this, in Robot.periodic().
-        // Red driver stand other side. Flip x + y.
+        // Red driver stands on the other side: flip both axes. Stick y is negative when pushed up.
         double flip = robot.alliance() == Alliance.RED ? -1 : 1;
+        double scale = DriverInput.stickScale(gamepad1.left_stick_x, gamepad1.left_stick_y);
         DrivePowers powers = ManualDrive.fieldCentric(
-                flip * gamepad1.left_stick_y,
-                flip * gamepad1.left_stick_x,
-                -gamepad1.right_stick_x,
-                robot.follower().pose().heading()
-        );
-
-        // driveOrHold: sticks released = hold spot, no coast.
-        // Use follower.manual(powers) to coast.
+                flip * gamepad1.left_stick_y * scale,
+                flip * gamepad1.left_stick_x * scale,
+                -DriverInput.turn(gamepad1.right_stick_x),
+                robot.pose().heading());
+        // Sticks released: hold the spot instead of coasting.
         ManualDrive.driveOrHold(robot.follower(), powers);
     }
 
     private void pushTelemetry() {
-        Telemetry.log("alliance", robot.alliance());
-        Telemetry.log("pose reset", "opad B=right X=left dpad=flowers = slot " + robot.restartSlot()
-                + " " + Constants.RESTART_SLOT_NAMES[robot.restartSlot()]);
+        if (!tele.beginFrame()) {
+            return;
+        }
         Pose pose = robot.pose();
-        Telemetry.log("x", String.format("%.1f", pose.x()));
-        Telemetry.log("y", String.format("%.1f", pose.y()));
-        Telemetry.log("heading (deg)", String.format("%.1f", Math.toDegrees(pose.heading())));
-        Telemetry.log("velocity x / y (in/s)", String.format("%.1f / %.1f", robot.velocity().vx, robot.velocity().vy));
-        Telemetry.log("goal", robot.goal() + " at (" + Constants.goalX(robot.alliance(), robot.goal())
-                + ", " + Constants.goalY(robot.alliance(), robot.goal()) + ")");
-        Telemetry.log("distance to goal", String.format("%.1f", robot.shooter.distanceToGoal()));
-        Telemetry.log("bearing to goal (deg)", String.format("%.1f", robot.shooter.bearingToGoal()));
-        Telemetry.log("turret (deg)", robot.shooter.commandedTurretDeg());
-        Telemetry.log("hood", robot.shooter.commandedHoodPosition());
-        Telemetry.log("flywheel target", robot.shooter.targetRpm());
-        Telemetry.log("battery (V)", String.format("%.2f", robot.batteryVoltage()));
-        Telemetry.log("flywheel current", robot.shooter.currentRpm());
-        Telemetry.log("at speed", robot.shooter.atSpeed());
-        Telemetry.log("ready to shoot", robot.shooter.readyToShoot());
-        Telemetry.log("turret settled", robot.shooter.turretSettled());
-        Telemetry.log("gate open", robot.intake.isGateOpen());
-        Telemetry.log("flower deployed", robot.intake.isFlowerDeployed());
+        ShotSolution shot = robot.shot();
+        Velocity velocity = robot.velocity();
+        tele.add("alliance / cell", robot.alliance() + " / " + robot.cell());
+        tele.add("pose", formatPose(pose));
+        tele.add("ready", robot.readyToShoot());
+        // The parts of "ready", so a feed that will not start shows what it waits for.
+        tele.detail("at speed / turret settled / hood settled", robot.flywheel.atSpeed() + " / "
+                + robot.turret.settled() + " / " + robot.hood.settled());
+        tele.add("flywheel", String.format("%s  %.0f / %.0f RPM",
+                robot.flywheel.mode(), robot.flywheel.rpm(), robot.flywheel.targetRpm()));
+        tele.detail("distance (in)", String.format("%.1f", shot.distanceIn));
+        tele.detail("turret (deg)", String.format("cmd %.1f  est %.1f  trim %.1f",
+                robot.turret.commandedDeg(), robot.turret.estimatedDeg(), robot.turret.trimDeg()));
+        tele.detail("hood", String.format("%.3f  trim %.3f", robot.hood.commanded(), robot.hood.trim()));
+        tele.detail("velocity x / y (in/s)", String.format("%.1f / %.1f", velocity.vx, velocity.vy));
+        tele.detail("release speed (in/s)", String.format("%.1f", shot.releaseSpeed));
+        tele.detail("battery (V)", String.format("%.2f", robot.battery.volts()));
+        tele.detail("OctoQuad bad reads", robot.flywheel.badReads());
+        tele.detail("gate / flower", (robot.intake.isGateOpen() ? "open" : "closed") + " / "
+                + (robot.flower.isDeployed() ? "deployed" : "stowed"));
+        tele.detail("restart slot", robot.restartSlot() + " " + Field.RESTART_SLOT_NAMES[robot.restartSlot()]);
+        FieldDrawing.robot(pose);
+        tele.endFrame();
+    }
+
+    private static String formatPose(Pose pose) {
+        return String.format("%.1f, %.1f, %.1f deg",
+                pose.x(), pose.y(), MathUtil.wrapDegrees(Math.toDegrees(pose.heading())));
     }
 }

@@ -4,27 +4,38 @@ import static com.pedropathing.ivy.groups.Groups.deadline;
 import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 import static com.pedropathing.ivy.pedro.PedroCommands.hold;
 
+import com.bylazar.configurables.annotations.Configurable;
+import com.pedropathing.api.Paths;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.commands.Commands;
-import com.pedropathing.api.Paths;
 import com.pedropathing.math.Pose;
 import com.pedropathing.math.Velocity;
 import com.pedropathing.paths.Path;
 
-import org.firstinspires.ftc.teamcode.globals.Constants;
-import org.firstinspires.ftc.teamcode.globals.Goal;
-import org.firstinspires.ftc.teamcode.globals.Robot;
+import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.field.HiveCell;
 import org.firstinspires.ftc.teamcode.pedro.LimitedMecanum;
+import org.firstinspires.ftc.teamcode.util.MathUtil;
 
-/** Auto drive steps. */
+/**
+ * Auto drive steps. Shooter mechanisms are never used here: they are mode-based and track on their own,
+ * and a group that required them would hold them for the whole routine.
+ */
+@Configurable
 public final class AutoCommands {
+
+    /** Slower than this on an intake path = maybe stuck on a ball. */
+    public static double STUCK_SPEED_IN_PER_S = 2.0;
+
+    /** Stuck this long = give up the path, hold where it is, go to the next step. */
+    public static double STUCK_MS = 3000;
 
     private AutoCommands() {
     }
 
-    /** Aim at this goal from now on. Use after HIVE tip. */
-    public static Command switchGoal(Robot robot, Goal goal) {
-        return Commands.instant(() -> robot.setGoal(goal));
+    /** Aim at this cell from now on (after a tip). */
+    public static Command switchCell(Robot robot, HiveCell cell) {
+        return Commands.instant(() -> robot.setCell(cell));
     }
 
     /** Drive path at percent of full power (0-100). Full power again after. Hold end pose. */
@@ -42,14 +53,13 @@ public final class AutoCommands {
     }
 
     /**
-     * Straight path, fast then slow. Split in two paths at splitAt (0-1).
-     * Pedro brake only at path end, so first part brake into split point, then slow part.
-     * Intake whole time. Slow part stuck on ball AUTO_STUCK_MS = move on.
+     * Straight path, fast then slow, split at splitAt (0-1). Pedro brakes only at a path end, so the fast part
+     * brakes into the split point, then the slow part runs. Intake the whole time; stuck = move on.
      */
     public static Command driveIntakingFastThenSlow(Robot robot, Path line, double splitAt,
                                                     double fastPercent, double slowPercent) {
         Pose start = line.get(0);
-        Pose split = line.get(Constants.clamp(splitAt, 0, 1));
+        Pose split = line.get(MathUtil.clamp(splitAt, 0, 1));
         Pose end = line.get(1);
         Path fast = Paths.line(start, split).linear(start, split);
         Path slow = Paths.line(split, end).linear(split, end);
@@ -61,8 +71,8 @@ public final class AutoCommands {
     }
 
     /**
-     * Piecewise path speed. Any path. Too fast for piece = brake down to it. Pairs: path done (0-1) where piece start, percent power.
-     * Ex: 0, 100, 0.5, 30 = first half full power, rest 30%. Full power again after.
+     * Piecewise path speed, any path. Pairs: path completion (0-1) where a piece starts, percent power.
+     * Example: 0, 100, 0.5, 30 = first half full power, rest 30%. Full power again after.
      */
     public static Command withSpeeds(Robot robot, Command drive, double... donePercentPairs) {
         return deadline(drive, Commands.infinite(() -> {
@@ -73,18 +83,18 @@ public final class AutoCommands {
                     percent = donePercentPairs[i + 1];
                 }
             }
-            LimitedMecanum.maxPower = Constants.clamp(percent / 100.0, 0, 1);
+            LimitedMecanum.maxPower = MathUtil.clamp(percent / 100.0, 0, 1);
         })).then(limitPower(100));
     }
 
-    /** Drive + intake at percent power. Stuck on ball AUTO_STUCK_MS = stop path, hold spot, go next. */
+    /** Drive + intake at percent power. Stuck on a ball for STUCK_MS = stop the path, hold, go on. */
     public static Command driveIntakingUnjam(Robot robot, Path path, double powerPercent) {
         return limitPower(powerPercent)
                 .then(driveIntakingUnjam(robot, path))
                 .then(limitPower(100));
     }
 
-    /** Drive + intake. Stuck on ball AUTO_STUCK_MS = stop path, hold spot, go next. */
+    /** Drive + intake. Stuck on a ball for STUCK_MS = stop the path, hold where it is, go on. */
     public static Command driveIntakingUnjam(Robot robot, Path path) {
         StuckTimer stuck = new StuckTimer(robot);
         return deadline(
@@ -92,13 +102,40 @@ public final class AutoCommands {
                         follow(robot.follower(), path).raceWith(Commands.waitUntil(stuck::isStuck))),
                 robot.intake.intake())
                 .then(robot.intake.stopIntake())
-                // Stuck: hold where it is, no push into jam. Else hold path end.
+                // Stuck: hold where it is, do not push into the jam. Else hold the path end.
                 .then(Commands.instant(() -> robot.follower().hold(
                         stuck.gaveUp() ? robot.pose() : path.endPose())));
     }
 
-    /** True when robot barely move for AUTO_STUCK_MS. */
+    /** Run the intake this long, then stop the rollers. */
+    public static Command intakeFor(Robot robot, double ms) {
+        return robot.intake.intake().raceWith(Commands.waitMs(ms))
+                .then(robot.intake.stopIntake());
+    }
+
+    /** Drive path, then hold its end pose. */
+    public static Command drive(Robot robot, Path path) {
+        return follow(robot.follower(), path)
+                // endPose, not hold(follower): that one grabs the start pose.
+                .then(hold(robot.follower(), path.endPose()));
+    }
+
+    /** Drive + intake, stop the rollers, hold the end pose. */
+    public static Command driveIntaking(Robot robot, Path path) {
+        return deadline(
+                follow(robot.follower(), path),
+                robot.intake.intake())
+                .then(robot.intake.stopIntake())
+                .then(hold(robot.follower(), path.endPose()));
+    }
+
+    private static Command limitPower(double percent) {
+        return Commands.instant(() -> LimitedMecanum.maxPower = MathUtil.clamp(percent / 100.0, 0, 1));
+    }
+
+    /** True when the robot barely moves for STUCK_MS. */
     private static final class StuckTimer {
+
         private final Robot robot;
         private long lastMoveMs;
         private boolean gaveUp;
@@ -115,45 +152,15 @@ public final class AutoCommands {
         boolean isStuck() {
             Velocity v = robot.velocity();
             long now = System.currentTimeMillis();
-            if (Math.hypot(v.vx, v.vy) > Constants.AUTO_STUCK_SPEED_IN_PER_S) {
+            if (Math.hypot(v.vx, v.vy) > STUCK_SPEED_IN_PER_S) {
                 lastMoveMs = now;
             }
-            gaveUp = now - lastMoveMs >= Constants.AUTO_STUCK_MS;
+            gaveUp = now - lastMoveMs >= STUCK_MS;
             return gaveUp;
         }
 
         boolean gaveUp() {
             return gaveUp;
         }
-    }
-
-    /** Run intake this long, then stop rollers. */
-    public static Command intakeFor(Robot robot, double ms) {
-        return robot.intake.intake().raceWith(Commands.waitMs(ms))
-                .then(robot.intake.stopIntake());
-    }
-
-    private static Command limitPower(double percent) {
-        return Commands.instant(() -> LimitedMecanum.maxPower = Constants.clamp(percent / 100.0, 0, 1));
-    }
-
-    /** Drive path. Hold end pose. */
-    public static Command drive(Robot robot, Path path) {
-        return follow(robot.follower(), path)
-                // endPose, not hold(follower): that one grab start pose.
-                .then(hold(robot.follower(), path.endPose()));
-    }
-
-    // Never use shooter here. Sequence hold its mechanisms whole time,
-    // shooter default (aim + flywheel) would stop for all of auto.
-
-    /** Drive + intake. Stop rollers, hold end pose. */
-    public static Command driveIntaking(Robot robot, Path path) {
-        return deadline(
-                follow(robot.follower(), path),
-                robot.intake.intake())
-                .then(robot.intake.stopIntake())
-                // endPose, not hold(follower): that one grab start pose.
-                .then(hold(robot.follower(), path.endPose()));
     }
 }
