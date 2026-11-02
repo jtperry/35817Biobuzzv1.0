@@ -213,6 +213,17 @@ public class Turret implements Mechanism {
         return CENTER_POSITION + degrees / DEG_PER_POSITION;
     }
 
+    /** Servo position with the turret facing robot forward (the calibration's center). */
+    public static double centerPosition() {
+        return CENTER_POSITION;
+    }
+
+    /** A new calibration, live (Turret Calibration). Copy the numbers into CENTER_POSITION / DEG_PER_POSITION. */
+    public static void setCalibration(double centerPosition, double degPerPosition) {
+        CENTER_POSITION = centerPosition;
+        DEG_PER_POSITION = degPerPosition;
+    }
+
     // ---------------------------------------------------------------- internals
 
     private double chooseAngle(double degrees) {

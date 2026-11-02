@@ -52,6 +52,18 @@ public class TurretTest {
     }
 
     @Test
+    public void setCalibrationMovesTheMapping() {
+        try {
+            Turret.setCalibration(0.6, -350.0);
+            assertEquals(0.6, Turret.centerPosition(), EPS);
+            assertEquals(0.6, Turret.positionAt(0), EPS);
+            assertEquals(-35.0, Turret.degreesAt(0.7), EPS);
+        } finally {
+            Turret.setCalibration(0.5, 403.0);
+        }
+    }
+
+    @Test
     public void onTargetSeesAHoldShortOfTheRequest() {
         assertFalse(Turret.onTarget(205, MAX, 2.0));
         assertFalse(Turret.onTarget(-205, MIN, 2.0));

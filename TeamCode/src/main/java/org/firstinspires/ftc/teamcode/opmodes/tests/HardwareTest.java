@@ -41,8 +41,8 @@ public class HardwareTest extends NextOpMode {
     /** Index into TURRET_CHOICES. Starts with the left servo alone so the two cannot fight. */
     private int turretChoice = 0;
     private boolean gateOpen = false;
-    private double turretPosition = Turret.CENTER_POSITION;
-    private double hoodPosition = Hood.STOW_POSITION;
+    private double turretPosition = Turret.centerPosition();
+    private double hoodPosition = Hood.stowPosition();
 
     public HardwareTest(Robot robot) {
         super(robot, BulkReadHook.INSTANCE);

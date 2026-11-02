@@ -111,6 +111,11 @@ public class Hood implements Mechanism {
         return Math.abs(commanded - estimate.value()) <= SETTLE_TOLERANCE;
     }
 
+    /** The stow position: inside the range, clear of the hard stop. */
+    public static double stowPosition() {
+        return STOW_POSITION;
+    }
+
     public double commanded() {
         return commanded;
     }
