@@ -98,6 +98,11 @@ public class Hood implements Mechanism {
         trim += delta;
     }
 
+    /** One driver trim step, TRIM_STEP; direction +1 or -1. */
+    public void trimStep(int direction) {
+        trim(direction * TRIM_STEP);
+    }
+
     public void clearTrim() {
         trim = 0;
     }

@@ -153,6 +153,11 @@ public class Turret implements Mechanism {
         trimDeg += deltaDeg;
     }
 
+    /** One driver trim step, TRIM_STEP_DEG; direction +1 or -1. */
+    public void trimStep(int direction) {
+        trim(direction * TRIM_STEP_DEG);
+    }
+
     public void clearTrim() {
         trimDeg = 0;
     }

@@ -108,6 +108,11 @@ public class Flywheel implements Mechanism {
         atSpeed = false;
         atSpeedDebouncer.calculate(false);
         writePowers(0, 0);
+        // The SDK zeroes the motors at every OpMode init, but these NextMotors live for the app session and their
+        // write cache still holds the last OpMode's power. Push 0 now so cache = hardware, else a first 1.0 that
+        // matches a stale cached 1.0 is never written and the flywheel stays dead.
+        motor1.update();
+        motor2.update();
     }
 
     @Override

@@ -6,17 +6,21 @@ import com.pedropathing.ivy.commands.Commands;
 
 import org.firstinspires.ftc.teamcode.Robot;
 
+import java.util.function.BooleanSupplier;
+import java.util.function.DoubleSupplier;
+import java.util.function.LongSupplier;
+
 /** Shot sequences (spec 5.6). Only the intake is required; turret, hood and flywheel track on their own. */
 @Configurable
 public final class ShootCommands {
 
-    /** True = stages run only while ready and pause on an RPM dip. False = v1 straight feed once ready. */
+    /** True = stages run only while ready: pause on an RPM dip or aim loss. False = v1 straight feed once ready. */
     public static boolean GATE_PER_BALL = true;
 
     /** Pause feeding when RPM falls this far below target. */
     public static double DIP_RPM = 150;
 
-    /** Still not ready after this long: feed anyway, ungated (v1 behavior). */
+    /** Never ready after this long: feed anyway, ungated (v1 behavior). Once ready, gating stays on. */
     public static double READY_TIMEOUT_MS = 2000;
 
     /** A volley ends after this much actual feeding time... */
@@ -43,48 +47,64 @@ public final class ShootCommands {
     }
 
     /** Decides each loop whether the stages may push balls, and when a volley is done. */
-    private static final class FeedGate {
+    static final class FeedGate {
 
-        private final Robot robot;
+        private final BooleanSupplier ready;
+        private final BooleanSupplier aimSettled;
+        private final DoubleSupplier rpmDeficit;
+        private final LongSupplier clockNanos;
         private boolean feeding = false;
         private boolean forced = false;
+        private boolean everReady = false;
         private long startNanos = 0;
         private long lastNanos = 0;
         private double fedMs = 0;
 
         FeedGate(Robot robot) {
-            this.robot = robot;
+            this(robot::readyToShoot, robot::aimSettled, robot.flywheel::rpmDeficit, System::nanoTime);
+        }
+
+        /** Readiness, aim, RPM deficit and clock as suppliers (unit tests). */
+        FeedGate(BooleanSupplier ready, BooleanSupplier aimSettled, DoubleSupplier rpmDeficit, LongSupplier clockNanos) {
+            this.ready = ready;
+            this.aimSettled = aimSettled;
+            this.rpmDeficit = rpmDeficit;
+            this.clockNanos = clockNanos;
         }
 
         void reset() {
             feeding = false;
             forced = false;
+            everReady = false;
             fedMs = 0;
-            startNanos = System.nanoTime();
+            startNanos = clockNanos.getAsLong();
             lastNanos = startNanos;
         }
 
         boolean feeding() {
-            long now = System.nanoTime();
+            long now = clockNanos.getAsLong();
             if (feeding) {
                 fedMs += (now - lastNanos) / 1e6;
             }
             lastNanos = now;
-            if (!forced && (now - startNanos) / 1e6 >= READY_TIMEOUT_MS) {
-                forced = true;
-            }
             if (forced) {
                 feeding = true;
             } else if (!feeding) {
-                feeding = robot.readyToShoot();
-            } else if (GATE_PER_BALL && robot.flywheel.rpmDeficit() > DIP_RPM) {
+                feeding = ready.getAsBoolean();
+                everReady |= feeding;
+                // Never ready in this run: feed anyway. Once ready, dips and aim loss keep pausing.
+                if (!everReady && (now - startNanos) / 1e6 >= READY_TIMEOUT_MS) {
+                    forced = true;
+                    feeding = true;
+                }
+            } else if (GATE_PER_BALL && (rpmDeficit.getAsDouble() > DIP_RPM || !aimSettled.getAsBoolean())) {
                 feeding = false;
             }
             return feeding;
         }
 
         boolean volleyDone() {
-            return fedMs >= VOLLEY_FEED_MS || (System.nanoTime() - startNanos) / 1e6 >= VOLLEY_TIMEOUT_MS;
+            return fedMs >= VOLLEY_FEED_MS || (clockNanos.getAsLong() - startNanos) / 1e6 >= VOLLEY_TIMEOUT_MS;
         }
     }
 }

@@ -154,7 +154,12 @@ public class Robot implements NextRobot {
     }
 
     public boolean readyToShoot() {
-        return flywheel.atSpeed() && turret.settled() && hood.settled();
+        return flywheel.atSpeed() && aimSettled();
+    }
+
+    /** Turret and hood where the shot wants them. */
+    public boolean aimSettled() {
+        return turret.settled() && hood.settled();
     }
 
     // ---------------------------------------------------------------- driving

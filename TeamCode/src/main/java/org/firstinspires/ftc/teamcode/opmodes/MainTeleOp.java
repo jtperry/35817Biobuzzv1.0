@@ -12,9 +12,7 @@ import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.Field;
 import org.firstinspires.ftc.teamcode.field.HiveCell;
 import org.firstinspires.ftc.teamcode.input.DriverInput;
-import org.firstinspires.ftc.teamcode.shooter.Hood;
 import org.firstinspires.ftc.teamcode.shooter.ShotSolution;
-import org.firstinspires.ftc.teamcode.shooter.Turret;
 import org.firstinspires.ftc.teamcode.util.FieldDrawing;
 import org.firstinspires.ftc.teamcode.util.MathUtil;
 import org.firstinspires.ftc.teamcode.util.RobotTelemetry;
@@ -73,10 +71,10 @@ public class MainTeleOp extends NextOpMode {
         driver.x().onTrue(Commands.instant(robot.flywheel::toggleArmed));
 
         // Trims, same directions as v1.
-        driver.dpadLeft().onTrue(Commands.instant(() -> robot.turret.trim(-Turret.TRIM_STEP_DEG)));
-        driver.dpadRight().onTrue(Commands.instant(() -> robot.turret.trim(Turret.TRIM_STEP_DEG)));
-        driver.dpadUp().onTrue(Commands.instant(() -> robot.hood.trim(Hood.TRIM_STEP)));
-        driver.dpadDown().onTrue(Commands.instant(() -> robot.hood.trim(-Hood.TRIM_STEP)));
+        driver.dpadLeft().onTrue(Commands.instant(() -> robot.turret.trimStep(-1)));
+        driver.dpadRight().onTrue(Commands.instant(() -> robot.turret.trimStep(1)));
+        driver.dpadUp().onTrue(Commands.instant(() -> robot.hood.trimStep(1)));
+        driver.dpadDown().onTrue(Commands.instant(() -> robot.hood.trimStep(-1)));
         driver.back().onTrue(Commands.instant(() -> {
             robot.turret.clearTrim();
             robot.hood.clearTrim();

@@ -6,6 +6,7 @@ import com.pedropathing.ivy.Command;
 import org.firstinspires.ftc.teamcode.util.MathUtil;
 
 import java.util.function.BooleanSupplier;
+import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
 
 import dev.nextftc.hardware.actuators.NextMotor;
@@ -40,6 +41,8 @@ public class Intake implements Mechanism {
     private final NextMotor stage2 = new NextMotor(STAGE2);
     private NextServo gate;
     private boolean gateOpen = false;
+    /** Gate positions go to the servo. A unit test swaps this to run without hardware. */
+    DoubleConsumer gateOutput = position -> gate.setPosition(position);
 
     public Intake() {
         bindServos();
@@ -88,7 +91,10 @@ public class Intake implements Mechanism {
         return instant(() -> runStages(0, 0));
     }
 
-    /** Gate open; after GATE_OPEN_DELAY_MS the stages push balls while feeding is true. */
+    /**
+     * Gate open; after GATE_OPEN_DELAY_MS the stages push balls while feeding is true.
+     * However it ends (done, cancelled, overridden by intake/eject, a race or deadline parent): gate closed, stages off.
+     */
     public Command feed(BooleanSupplier feeding) {
         final long[] openedNanos = {0};
         return infinite(() -> {
@@ -102,6 +108,9 @@ public class Intake implements Mechanism {
         }).setStart(() -> {
             openedNanos[0] = System.nanoTime();
             setGate(true);
+        }).setEnd(endCondition -> {
+            setGate(false);
+            runStages(0, 0);
         });
     }
 
@@ -137,6 +146,6 @@ public class Intake implements Mechanism {
 
     private void setGate(boolean open) {
         gateOpen = open;
-        gate.setPosition(open ? GATE_OPEN_POSITION : GATE_CLOSED_POSITION);
+        gateOutput.accept(open ? GATE_OPEN_POSITION : GATE_CLOSED_POSITION);
     }
 }
