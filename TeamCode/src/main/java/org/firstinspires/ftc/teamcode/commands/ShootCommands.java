@@ -20,7 +20,7 @@ public final class ShootCommands {
     /** Pause feeding when RPM falls this far below target. */
     public static double DIP_RPM = 150;
 
-    /** Never ready after this long: feed anyway, ungated (v1 behavior). Once ready, gating stays on. */
+    /** Not ready for this long in one wait (start or a pause): feed anyway, ungated, for the rest of the run (v1 behavior). */
     public static double READY_TIMEOUT_MS = 2000;
 
     /** A volley ends after this much actual feeding time... */
@@ -55,8 +55,8 @@ public final class ShootCommands {
         private final LongSupplier clockNanos;
         private boolean feeding = false;
         private boolean forced = false;
-        private boolean everReady = false;
         private long startNanos = 0;
+        private long waitStartNanos = 0;
         private long lastNanos = 0;
         private double fedMs = 0;
 
@@ -75,9 +75,9 @@ public final class ShootCommands {
         void reset() {
             feeding = false;
             forced = false;
-            everReady = false;
             fedMs = 0;
             startNanos = clockNanos.getAsLong();
+            waitStartNanos = startNanos;
             lastNanos = startNanos;
         }
 
@@ -91,14 +91,14 @@ public final class ShootCommands {
                 feeding = true;
             } else if (!feeding) {
                 feeding = ready.getAsBoolean();
-                everReady |= feeding;
-                // Never ready in this run: feed anyway. Once ready, dips and aim loss keep pausing.
-                if (!everReady && (now - startNanos) / 1e6 >= READY_TIMEOUT_MS) {
+                // This wait (from the start or the last pause) ran too long: feed anyway. Short dips keep pausing.
+                if (!feeding && (now - waitStartNanos) / 1e6 >= READY_TIMEOUT_MS) {
                     forced = true;
                     feeding = true;
                 }
             } else if (GATE_PER_BALL && (rpmDeficit.getAsDouble() > DIP_RPM || !aimSettled.getAsBoolean())) {
                 feeding = false;
+                waitStartNanos = now;
             }
             return feeding;
         }

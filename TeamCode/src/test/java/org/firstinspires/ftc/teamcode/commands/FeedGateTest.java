@@ -82,6 +82,35 @@ public class FeedGateTest {
     }
 
     @Test
+    public void aimLostForGoodAfterReadyIsForcedAfterTheTimeout() {
+        ready = true;
+        assertTrue(at(400));
+        aimSettled = false;
+        ready = false;
+        assertFalse(at(500));
+        assertFalse(at(2000));
+        assertFalse(at(2499));
+        assertTrue(at(2500));
+        assertTrue(at(3000));
+        assertFalse(gate.volleyDone());
+        assertTrue(at(3400));
+        assertTrue(gate.volleyDone());
+    }
+
+    @Test
+    public void dipThatPersistsAfterReadyIsForcedAfterTheTimeout() {
+        ready = true;
+        assertTrue(at(400));
+        ready = false;
+        rpmDeficit = 300;
+        assertFalse(at(500));
+        assertFalse(at(2000));
+        assertFalse(at(2499));
+        assertTrue(at(2500));
+        assertTrue(at(2600));
+    }
+
+    @Test
     public void smallDipWithinDipRpmKeepsFeeding() {
         ready = true;
         assertTrue(at(400));
