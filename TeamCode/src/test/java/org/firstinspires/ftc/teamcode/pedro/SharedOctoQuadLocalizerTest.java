@@ -9,6 +9,7 @@ import com.qualcomm.hardware.digitalchickenlabs.OctoQuad.LocalizerStatus;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.lang.reflect.Proxy;
@@ -16,14 +17,24 @@ import java.lang.reflect.Proxy;
 /** The OctoQuad status wait at INIT (spec 8), against a fake OctoQuad that reports scripted statuses. */
 public class SharedOctoQuadLocalizerTest {
 
+    private static final double TIMEOUT_MS = 300;
+
     /** Statuses the fake reports, in order; the last one repeats. */
     private LocalizerStatus[] statuses;
     private long statusReads;
 
+    private double savedTimeoutMs;
+
+    @Before
+    public void setUp() {
+        savedTimeoutMs = SharedOctoQuadLocalizer.RUNNING_TIMEOUT_MS;
+        // Short, so the timeout tests stay quick; every assertion below is relative to it.
+        SharedOctoQuadLocalizer.RUNNING_TIMEOUT_MS = TIMEOUT_MS;
+    }
+
     @After
     public void tearDown() {
-        // Never leave the interrupt flag set for the next test.
-        Thread.interrupted();
+        SharedOctoQuadLocalizer.RUNNING_TIMEOUT_MS = savedTimeoutMs;
     }
 
     private SharedOctoQuadLocalizer init() {
@@ -51,7 +62,7 @@ public class SharedOctoQuadLocalizerTest {
             init();
         } catch (IllegalStateException e) {
             double seconds = (System.nanoTime() - start) / 1e9;
-            assertTrue("gave up after " + seconds + " s", seconds >= 2.0 && seconds < 4.0);
+            assertTrue("gave up after " + seconds + " s", seconds >= TIMEOUT_MS / 1000 && seconds < 2.0);
             assertTrue(e.getMessage(), e.getMessage().contains("'octoquad'"));
             return e.getMessage();
         }
@@ -88,10 +99,15 @@ public class SharedOctoQuadLocalizerTest {
         statuses = new LocalizerStatus[] {LocalizerStatus.INVALID};
         // STOP during INIT: the SDK interrupts the OpMode thread.
         Thread.currentThread().interrupt();
-        long start = System.nanoTime();
-        init();
-        double seconds = (System.nanoTime() - start) / 1e9;
-        assertTrue("interrupt flag kept", Thread.interrupted());
-        assertTrue("returned after " + seconds + " s", seconds < 0.5);
+        try {
+            long start = System.nanoTime();
+            init();
+            double seconds = (System.nanoTime() - start) / 1e9;
+            assertTrue("interrupt flag kept", Thread.currentThread().isInterrupted());
+            assertTrue("returned after " + seconds + " s", seconds < TIMEOUT_MS / 1000);
+        } finally {
+            // This is the timed test thread (the runner thread's @After cannot clear it): never leave the flag set.
+            Thread.interrupted();
+        }
     }
 }

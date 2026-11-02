@@ -119,7 +119,8 @@ public class Robot implements NextRobot {
         }
     }
 
-    private void buildFollower(HardwareMap hardwareMap, Pose startPose) {
+    /** Package-private so a test can build a Robot without hardware. */
+    void buildFollower(HardwareMap hardwareMap, Pose startPose) {
         LimitedMecanum.maxPower = 1.0;
         SharedOctoQuadLocalizer localizer = new SharedOctoQuadLocalizer(hardwareMap, Constants.localizerConfig);
         follower = Constants.create(hardwareMap, localizer);
@@ -135,8 +136,11 @@ public class Robot implements NextRobot {
     public void beginAuto(HardwareMap hardwareMap, Alliance autoAlliance, Pose startPose) {
         alliance = autoAlliance;
         cell = HiveCell.A;
+        // This auto's INIT replaces any older auto's pose: the robot was moved to this start.
+        handoff.clear();
         initFollower(hardwareMap, startPose);
-        // A failed INIT never runs, so it leaves no pose for teleop.
+        // If the follower fails, teleop gets no handoff (picker / start pose). If it is fine, this auto's start pose is
+        // pending, even when a later INIT step (resetInInit) fails: that is where the robot was placed.
         if (initError == null) {
             handoff.beginAuto(startPose);
         }

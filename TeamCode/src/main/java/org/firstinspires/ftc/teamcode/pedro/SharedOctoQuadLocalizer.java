@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.pedro;
 
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.localization.Localizer;
 import com.pedropathing.localization.MotionState;
 import com.pedropathing.math.Pose;
@@ -14,9 +15,10 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 /** Pedro OctoQuad localizer. Also grab all encoder ports, same I2C read. */
+@Configurable
 public class SharedOctoQuadLocalizer implements Localizer {
-    /** Longest wait for RUNNING after a reset (IMU warm-up and calibration). */
-    private static final long RUNNING_TIMEOUT_MS = 2000;
+    /** Longest wait for RUNNING after a reset (IMU warm-up and calibration); raise it in Panels, then INIT again. */
+    public static double RUNNING_TIMEOUT_MS = 2000;
     /** Pause between status reads while waiting. */
     private static final long STATUS_POLL_MS = 10;
 
@@ -70,9 +72,9 @@ public class SharedOctoQuadLocalizer implements Localizer {
             if (Thread.currentThread().isInterrupted()) {
                 return;
             }
-            if (System.nanoTime() - start >= RUNNING_TIMEOUT_MS * 1_000_000L) {
+            if ((System.nanoTime() - start) / 1e6 >= RUNNING_TIMEOUT_MS) {
                 throw new IllegalStateException("OctoQuad '" + name + "' localizer not RUNNING after "
-                        + RUNNING_TIMEOUT_MS + " ms (status " + status + "): " + notRunningHint(status, name));
+                        + (long) RUNNING_TIMEOUT_MS + " ms (status " + status + "): " + notRunningHint(status, name));
             }
             try {
                 Thread.sleep(STATUS_POLL_MS);
@@ -88,7 +90,7 @@ public class SharedOctoQuadLocalizer implements Localizer {
             case WARMING_UP_IMU:
             case CALIBRATING_IMU:
                 return "it answers but the IMU is still calibrating. Keep the robot still during INIT; if this repeats,"
-                        + " raise RUNNING_TIMEOUT_MS in SharedOctoQuadLocalizer.";
+                        + " raise SharedOctoQuadLocalizer.RUNNING_TIMEOUT_MS in Panels and INIT again.";
             case FAULT_NO_IMU:
                 return "it reports no working IMU. Check the OctoQuad firmware.";
             default:
