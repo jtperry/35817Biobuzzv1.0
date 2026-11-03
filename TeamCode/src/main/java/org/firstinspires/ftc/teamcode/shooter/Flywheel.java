@@ -215,6 +215,11 @@ public class Flywheel implements Mechanism {
         return badReads;
     }
 
+    /** Whether motor 2 runs with motor 1 (USE_MOTOR_2). The Flywheel Tuner drives the motors the same way. */
+    public static boolean usesMotor2() {
+        return USE_MOTOR_2;
+    }
+
     /** Separate hub read each call: tests only, never in the match loop. */
     public double motor1Amps() {
         return motor1.getCurrent().into(Units.Amperes);
