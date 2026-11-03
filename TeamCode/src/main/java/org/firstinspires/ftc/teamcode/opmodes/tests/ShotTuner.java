@@ -163,7 +163,8 @@ public class ShotTuner extends NextOpMode {
         tele.line("Start at slot 0 (right) after a battery swap. A move whose path would hit the hive or a wall is "
                 + "refused.");
         Pose startPose = Field.restartPose(robot.alliance(), robot.restartSlot());
-        if (!ShotTunerLane.linearLegClear(startPose, turnFacing(), startPose)) {
+        if (!ShotTunerLane.poseClear(turnFacing())
+                || !ShotTunerLane.linearLegClear(startPose, turnFacing(), startPose)) {
             tele.line("WARNING: from this start slot the first move is refused (the hive or a wall is in the way): "
                     + "after PLAY drive to the lane by hand, then press B.");
         }
@@ -273,6 +274,7 @@ public class ShotTuner extends NextOpMode {
     private void driveToCurrent() {
         ShotTunerLane.Spot spot = session.current();
         if (spot == null) {
+            blocked = false;
             // X on the last spot while driving to it: the session is done, so stop the old move.
             if (moving()) {
                 stopMove();
@@ -317,6 +319,10 @@ public class ShotTuner extends NextOpMode {
         Command drive = Commands.instant(() -> LimitedMecanum.maxPower = MathUtil.clamp(DRIVE_PCT / 100.0, 0, 1));
         if (heldSpot == null || onSideLeg(heldSpot, cell, turn) != onSideLeg(spot, cell, turn)) {
             Pose turnFacing = turnFacing();
+            // The turn point itself keeps the full margins (a lane tunable can put it against a wall).
+            if (!ShotTunerLane.poseClear(turnFacing)) {
+                return null;
+            }
             if (Math.hypot(turn.x() - from.x(), turn.y() - from.y()) >= MIN_LEG_IN) {
                 // Turn linearly to the heading at the turn point, not facingPoint(cell): from restart slot 0
                 // (flush in the corner) facing the cell from the start would swing the robot into both walls.
@@ -324,9 +330,6 @@ public class ShotTuner extends NextOpMode {
                     return null;
                 }
                 drive = drive.then(follow(robot.follower(), Paths.line(from, turn).linear(from, turnFacing)));
-            } else if (!ShotTunerLane.linearLegClear(turnFacing, turnFacing, start)) {
-                // The turn point itself (a lane tunable can put it past a wall).
-                return null;
             }
             from = turn;
         }

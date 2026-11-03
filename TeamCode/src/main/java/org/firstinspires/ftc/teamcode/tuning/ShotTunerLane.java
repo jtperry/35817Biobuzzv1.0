@@ -110,6 +110,12 @@ public final class ShotTunerLane {
         return legClear(from, to, null, MathUtil.wrapRadians(to.heading() - from.heading()), start);
     }
 
+    /** True if the footprint at this pose keeps the full spot margins (no start allowance): for the turn point. */
+    public static boolean poseClear(Pose pose) {
+        return finite(pose) && Field.insideWalls(pose.x(), pose.y(), pose.heading(), WALL_MARGIN_IN)
+                && Field.clearOfFrame(pose.x(), pose.y(), pose.heading(), FRAME_MARGIN_IN);
+    }
+
     /** As linearLegClear, but the heading faces the point all along the leg (Pedro facingPoint()). */
     public static boolean facingLegClear(Pose from, Pose to, Pose facing, Pose start) {
         return legClear(from, to, facing, 0, start);

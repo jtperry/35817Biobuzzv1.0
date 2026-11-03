@@ -287,6 +287,31 @@ public class ShotTunerLaneTest {
     }
 
     @Test
+    public void theTurnPointKeepsTheFullWallMarginEvenFromAFlushStart() {
+        for (Alliance alliance : Alliance.values()) {
+            assertTrue(alliance.name(), ShotTunerLane.poseClear(turnFacing(alliance)));
+        }
+        // Back edge 0.13 in from the far wall: inside the wall, but not by WALL_MARGIN_IN.
+        ShotTunerLane.TURN_IN = 51;
+        for (Alliance alliance : Alliance.values()) {
+            assertFalse(alliance.name(), ShotTunerLane.poseClear(turnFacing(alliance)));
+        }
+        // The spots before it still pass, so the turn point needs its own check.
+        for (ShotTunerLane.Spot spot : ShotTunerLane.spots(Alliance.BLUE)) {
+            if (spot.nominalIn == 50) {
+                assertTrue(spot.valid);
+            }
+        }
+        assertFalse(ShotTunerLane.poseClear(new Pose(Double.NaN, 100, 0)));
+    }
+
+    private static Pose turnFacing(Alliance alliance) {
+        Pose turn = ShotTunerLane.turnPoint(alliance);
+        Pose cell = ShotTunerLane.cellA(alliance);
+        return new Pose(turn.x(), turn.y(), Math.atan2(cell.y() - turn.y(), cell.x() - turn.x()));
+    }
+
+    @Test
     public void aNonFiniteLegIsBlocked() {
         Pose from = Field.restartPose(Alliance.BLUE, 0);
         Pose nan = new Pose(Double.NaN, 100, 0);
