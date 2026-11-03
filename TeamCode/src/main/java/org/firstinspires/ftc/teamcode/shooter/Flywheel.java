@@ -135,7 +135,7 @@ public class Flywheel implements Mechanism {
             targetRpm = 0;
             writePowers(raw1, raw2);
         } else {
-            targetRpm = targetFor(mode);
+            targetRpm = finiteOrZero(targetFor(mode));
             double power = controlPower(dt);
             writePowers(power, USE_MOTOR_2 ? power : 0);
         }
@@ -237,6 +237,11 @@ public class Flywheel implements Mechanism {
             default:
                 return 0;
         }
+    }
+
+    /** A NaN or infinite target (bad supplier or table value) counts as no target: 0 clears the integral and last error. */
+    private static double finiteOrZero(double rpm) {
+        return Double.isFinite(rpm) ? rpm : 0;
     }
 
     /** Full power far below target; else volts feedforward + PID divided by battery volts. */
