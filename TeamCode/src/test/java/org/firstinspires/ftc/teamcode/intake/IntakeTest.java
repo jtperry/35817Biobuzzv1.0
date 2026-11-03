@@ -117,4 +117,44 @@ public class IntakeTest {
         assertFalse(intake.isGateOpen());
         assertEquals(Intake.GATE_CLOSED_POSITION, gatePosition, EPS);
     }
+
+    @Test
+    public void gateRawWritesTheSuppliedPositionEveryLoop() {
+        double[] position = {0.3};
+        intake.gateRaw(() -> position[0]).schedule();
+        Scheduler.execute();
+        assertEquals(0.3, gatePosition, EPS);
+        assertFalse(intake.isGateOpen());
+        position[0] = 0.35;
+        Scheduler.execute();
+        assertEquals(0.35, gatePosition, EPS);
+        assertFalse(intake.isGateOpen());
+    }
+
+    @Test
+    public void gateRawClampsToTheServoRange() {
+        intake.gateRaw(() -> 1.5).schedule();
+        Scheduler.execute();
+        assertEquals(1.0, gatePosition, EPS);
+        intake.gateRaw(() -> -0.5).schedule();
+        Scheduler.execute();
+        assertEquals(0.0, gatePosition, EPS);
+    }
+
+    @Test
+    public void gateRawReplacesAFeed() {
+        startFeed();
+        intake.gateRaw(() -> 0.3).schedule();
+        Scheduler.execute();
+        assertFalse(intake.isGateOpen());
+        assertEquals(0.3, gatePosition, EPS);
+    }
+
+    @Test
+    public void gatePositionGettersReadTheTunables() {
+        Intake.GATE_OPEN_POSITION = 0.5;
+        Intake.GATE_CLOSED_POSITION = 0.1;
+        assertEquals(0.5, Intake.gateOpenPosition(), EPS);
+        assertEquals(0.1, Intake.gateClosedPosition(), EPS);
+    }
 }

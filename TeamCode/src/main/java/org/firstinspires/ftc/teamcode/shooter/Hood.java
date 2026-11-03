@@ -120,6 +120,14 @@ public class Hood implements Mechanism {
         return STOW_POSITION;
     }
 
+    public static double minPosition() {
+        return MIN_POSITION;
+    }
+
+    public static double maxPosition() {
+        return MAX_POSITION;
+    }
+
     public double commanded() {
         return commanded;
     }
