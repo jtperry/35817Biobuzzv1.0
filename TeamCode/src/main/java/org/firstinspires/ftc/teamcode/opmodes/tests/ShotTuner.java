@@ -91,6 +91,8 @@ public class ShotTuner extends NextOpMode {
     private String rpmTable = "";
     private String hoodTable = "";
     private String saveError = "";
+    /** The last move was refused: a leg would hit the hive frame or a wall. */
+    private boolean blocked = false;
 
     private Command move;
     /** The spot the robot last arrived at; null while moving and after manual drive. Picks the route. */
@@ -120,8 +122,9 @@ public class ShotTuner extends NextOpMode {
         buildSession();
 
         pad = new CommandGamepad(gamepad1);
-        // Shoot, intake and eject as in Main TeleOp: RT feeds through the same FeedGate.
-        pad.rightTrigger().isOver(0.5).whileTrue(ShootCommands.whileHeld(robot));
+        // Shoot, intake and eject as in Main TeleOp: RT feeds through the same FeedGate. Only with a target rpm: at 0
+        // the gate is never ready and would force the stages into the stopped wheel after its timeout.
+        pad.rightTrigger().isOver(0.5).and(() -> rpm > 0).whileTrue(ShootCommands.whileHeld(robot));
         pad.leftBumper().whileTrue(robot.intake.intake());
         pad.rightBumper().whileTrue(robot.intake.eject());
         pad.dpadUp().onTrue(Commands.instant(() -> rpm += RPM_STEP));
@@ -157,13 +160,15 @@ public class ShotTuner extends NextOpMode {
         // Rebuilt every frame so the spots follow the alliance and live lane tunable edits.
         buildSession();
         tele.line("Shot Tuner DRIVES after PLAY + A, straight to the lane.");
-        tele.line("Start at slot 0 (right) after a battery swap. Slots 3-5 are across the hive: the first move would "
-                + "drive through it.");
-        if (robot.restartSlot() >= 3) {
-            tele.line("WARNING: this start slot is across the hive from the lane.");
+        tele.line("Start at slot 0 (right) after a battery swap. A move whose path would hit the hive or a wall is "
+                + "refused.");
+        Pose startPose = Field.restartPose(robot.alliance(), robot.restartSlot());
+        if (!ShotTunerLane.linearLegClear(startPose, turnFacing(), startPose)) {
+            tele.line("WARNING: from this start slot the first move is refused (the hive or a wall is in the way): "
+                    + "after PLAY drive to the lane by hand, then press B.");
         }
         tele.line("Keep ShotTable.RPM_SCALE = 1.0 while tuning: saved RPM includes the scale.");
-        tele.line("RT works only after the first spot is reached (the flywheel is off until then).");
+        tele.line("RT shoots only while the target rpm is above 0 (it is 0 until the first spot is reached).");
         tele.add("alliance", robot.alliance() + "   (dpad left = BLUE, right = RED)");
         tele.add("start slot", robot.restartSlot() + " " + Field.RESTART_SLOT_NAMES[robot.restartSlot()]
                 + "   (gamepad 2: B / X / dpad)");
@@ -245,6 +250,11 @@ public class ShotTuner extends NextOpMode {
             driveToCurrent();
             return;
         }
+        // Only save values seeded and tuned for this spot (a stick during the move cancels it before arrive()).
+        if (spot.nominalIn != valuesFor) {
+            driveToCurrent();
+            return;
+        }
         ShotTunerLog.Row row = new ShotTunerLog.Row(spot.nominalIn, robot.shot().distanceIn, rpm, hood,
                 robot.battery.volts(), volleyMinRpm, robot.alliance().name());
         try {
@@ -271,8 +281,20 @@ public class ShotTuner extends NextOpMode {
             }
             return;
         }
+        boolean wasMoving = moving();
         stopMove();
-        move = moveTo(spot);
+        Command next = moveTo(spot);
+        if (next == null) {
+            // A leg would hit the hive or a wall: drive nothing, the driver gets closer to the lane by hand.
+            blocked = true;
+            if (wasMoving) {
+                heldSpot = null;
+                robot.follower().hold(robot.pose());
+            }
+            return;
+        }
+        blocked = false;
+        move = next;
         heldSpot = null;
         manual = false;
         started = true;
@@ -280,25 +302,38 @@ public class ShotTuner extends NextOpMode {
         move.schedule();
     }
 
-    /** Straight along the leg the robot arrived on, else via the turn point. Legs from the turn point or a spot face cell A. */
+    /**
+     * Straight along the leg the robot arrived on, else via the turn point. Legs from the turn point or a spot face
+     * cell A. Null if a leg or the turn point would put the footprint into the hive frame or a wall.
+     */
     private Command moveTo(ShotTunerLane.Spot spot) {
         // The frozen lane (see buildSession), the same one the spots were solved from.
         Pose cell = laneCell;
         Pose turn = laneTurn;
         Pose target = ShotTunerLane.pose(spot);
-        Pose from = robot.pose();
+        Pose start = robot.pose();
+        Pose from = start;
         // Same as AutoCommands.limitPower (private there); DRIVE_PCT is read when the command runs.
         Command drive = Commands.instant(() -> LimitedMecanum.maxPower = MathUtil.clamp(DRIVE_PCT / 100.0, 0, 1));
         if (heldSpot == null || onSideLeg(heldSpot, cell, turn) != onSideLeg(spot, cell, turn)) {
+            Pose turnFacing = turnFacing();
             if (Math.hypot(turn.x() - from.x(), turn.y() - from.y()) >= MIN_LEG_IN) {
                 // Turn linearly to the heading at the turn point, not facingPoint(cell): from restart slot 0
                 // (flush in the corner) facing the cell from the start would swing the robot into both walls.
-                Pose turnFacing = new Pose(turn.x(), turn.y(), Math.atan2(cell.y() - turn.y(), cell.x() - turn.x()));
+                if (!ShotTunerLane.linearLegClear(from, turnFacing, start)) {
+                    return null;
+                }
                 drive = drive.then(follow(robot.follower(), Paths.line(from, turn).linear(from, turnFacing)));
+            } else if (!ShotTunerLane.linearLegClear(turnFacing, turnFacing, start)) {
+                // The turn point itself (a lane tunable can put it past a wall).
+                return null;
             }
             from = turn;
         }
-        drive = leg(drive, from, target, cell);
+        drive = leg(drive, from, target, cell, start);
+        if (drive == null) {
+            return null;
+        }
         Follower follower = robot.follower();
         return drive.then(hold(follower, target)).then(Commands.instant(() -> arrive(spot)));
     }
@@ -308,9 +343,19 @@ public class ShotTuner extends NextOpMode {
         return spot.nominalIn > Math.hypot(turn.x() - cell.x(), turn.y() - cell.y()) + 1e-6;
     }
 
-    private Command leg(Command drive, Pose from, Pose to, Pose cell) {
+    /** Turn point of the frozen lane, facing cell A. */
+    private Pose turnFacing() {
+        return new Pose(laneTurn.x(), laneTurn.y(),
+                Math.atan2(laneCell.y() - laneTurn.y(), laneCell.x() - laneTurn.x()));
+    }
+
+    /** Null if the leg would hit the hive or a wall. */
+    private Command leg(Command drive, Pose from, Pose to, Pose cell, Pose start) {
         if (Math.hypot(to.x() - from.x(), to.y() - from.y()) < MIN_LEG_IN) {
             return drive;
+        }
+        if (!ShotTunerLane.facingLegClear(from, to, cell, start)) {
+            return null;
         }
         return drive.then(follow(robot.follower(), Paths.line(from, to).facingPoint(cell)));
     }
@@ -391,8 +436,14 @@ public class ShotTuner extends NextOpMode {
                     + "INIT again. Saves are kept.", volts));
         }
         addProgress();
+        if (blocked) {
+            tele.line("PATH BLOCKED by the hive or a wall: drive closer to the lane by hand, then press B.");
+        }
+        ShotTunerLane.Spot current = session.current();
+        boolean tuned = current != null && current.nominalIn == valuesFor;
         tele.add("drive", !started ? "press A to drive to the spot"
-                : manual ? "manual (A / X / Y / B = back to the lane)"
+                : manual ? (tuned ? "manual (A = save here, X / Y / B = back to the lane)"
+                : "manual (A / X / Y / B = back to the lane)")
                 : moving() ? "driving to the spot" : "holding the spot");
         tele.add("rpm", String.format(Locale.US, "target %.0f   now %.0f   last volley min %.0f",
                 rpm, robot.flywheel.rpm(), volleyMinRpm));
@@ -404,7 +455,7 @@ public class ShotTuner extends NextOpMode {
         }
         tele.line("Always aims at cell A. If the hive tips, tip it back by hand.");
         tele.line("A save + next   X skip   Y back   B return   RT shoot   LB intake   RB eject   dpad RPM / hood");
-        tele.line("RT works only after the first spot is reached (the flywheel is off until then).");
+        tele.line("RT shoots only while the target rpm is above 0 (it is 0 until the first spot is reached).");
         addTables();
         drawField(robot.pose());
         tele.endFrame();

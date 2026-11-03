@@ -39,6 +39,13 @@ public final class ShotTunerLane {
     /** Cap on the spot count, so a tiny STEP_IN or a huge END_IN typed into Panels cannot hang the OpMode. */
     private static final int MAX_SPOTS = 1000;
 
+    /** Leg samples: at most this far apart (inches) and this much turn apart (radians); at most MAX_SAMPLES. */
+    private static final double SAMPLE_IN = 0.5;
+    private static final double SAMPLE_RAD = Math.toRadians(2);
+    private static final int MAX_SAMPLES = 2000;
+    /** Rounding slack for a start flush on a wall (restart slot 0 is in the corner). */
+    private static final double WALL_SLACK_IN = 1e-6;
+
     public static final class Spot {
 
         /** Distance from cell A this spot was solved for, inches, rounded to 0.1 (the CSV key). */
@@ -92,6 +99,55 @@ public final class ShotTunerLane {
 
     public static Pose pose(Spot spot) {
         return new Pose(spot.x, spot.y, spot.heading);
+    }
+
+    /**
+     * True if the footprint stays inside the walls and clear of the hive frame (the spot margins) along a straight
+     * leg whose heading turns linearly the shortest way from from's heading to to's (Pedro linear()). start = where
+     * the move began: a robot that starts closer to a wall than WALL_MARGIN_IN may stay that close, never closer.
+     */
+    public static boolean linearLegClear(Pose from, Pose to, Pose start) {
+        return legClear(from, to, null, MathUtil.wrapRadians(to.heading() - from.heading()), start);
+    }
+
+    /** As linearLegClear, but the heading faces the point all along the leg (Pedro facingPoint()). */
+    public static boolean facingLegClear(Pose from, Pose to, Pose facing, Pose start) {
+        return legClear(from, to, facing, 0, start);
+    }
+
+    private static boolean legClear(Pose from, Pose to, Pose facing, double turn, Pose start) {
+        if (!finite(from) || !finite(to) || !finite(start) || (facing != null && !finite(facing))) {
+            return false;
+        }
+        double wallMargin = Math.min(WALL_MARGIN_IN, wallClearance(start)) - WALL_SLACK_IN;
+        double length = Math.hypot(to.x() - from.x(), to.y() - from.y());
+        double steps = Math.ceil(Math.max(length / SAMPLE_IN, Math.abs(turn) / SAMPLE_RAD));
+        int count = (int) Math.max(1, Math.min(MAX_SAMPLES, steps));
+        for (int i = 0; i <= count; i++) {
+            double t = (double) i / count;
+            double x = from.x() + t * (to.x() - from.x());
+            double y = from.y() + t * (to.y() - from.y());
+            double heading = facing == null ? from.heading() + t * turn : Math.atan2(facing.y() - y, facing.x() - x);
+            if (!Field.insideWalls(x, y, heading, wallMargin) || !Field.clearOfFrame(x, y, heading, FRAME_MARGIN_IN)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Smallest distance from a footprint corner to a wall (negative = past it). */
+    private static double wallClearance(Pose pose) {
+        double[] corners = new double[8];
+        Field.footprintCorners(pose.x(), pose.y(), pose.heading(), corners);
+        double clearance = Double.MAX_VALUE;
+        for (double value : corners) {
+            clearance = Math.min(clearance, Math.min(value, Field.SIZE_IN - value));
+        }
+        return clearance;
+    }
+
+    private static boolean finite(Pose pose) {
+        return Double.isFinite(pose.x()) && Double.isFinite(pose.y()) && Double.isFinite(pose.heading());
     }
 
     private static Spot spot(Alliance alliance, double nominalIn) {

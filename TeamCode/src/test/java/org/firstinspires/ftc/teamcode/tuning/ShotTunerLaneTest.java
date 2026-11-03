@@ -216,4 +216,81 @@ public class ShotTunerLaneTest {
             assertEquals(-14.0, spot.y, EPS);
         }
     }
+
+    /** The first leg of a move: from a restart slot to the turn point, turning to face cell A on the way. */
+    private static boolean firstLegClear(Alliance alliance, int slot) {
+        Pose from = Field.restartPose(alliance, slot);
+        Pose turn = ShotTunerLane.turnPoint(alliance);
+        Pose cell = ShotTunerLane.cellA(alliance);
+        Pose turnFacing = new Pose(turn.x(), turn.y(), Math.atan2(cell.y() - turn.y(), cell.x() - turn.x()));
+        return ShotTunerLane.linearLegClear(from, turnFacing, from);
+    }
+
+    // Slot 2 is left out: its rotated footprint clears the frame by about 5 in, but the frame check uses the
+    // footprint's bounding box, which overlaps the frame corner mid-turn, so that leg is refused.
+    @Test
+    public void slots0And1ReachTheTurnPointClearOfTheHiveAndWalls() {
+        for (Alliance alliance : Alliance.values()) {
+            for (int slot = 0; slot <= 1; slot++) {
+                assertTrue(alliance + " slot " + slot, firstLegClear(alliance, slot));
+            }
+        }
+    }
+
+    @Test
+    public void slots3To5WouldDriveThroughTheHive() {
+        for (Alliance alliance : Alliance.values()) {
+            for (int slot = 3; slot <= 5; slot++) {
+                assertFalse(alliance + " slot " + slot, firstLegClear(alliance, slot));
+            }
+        }
+    }
+
+    @Test
+    public void aTurnPointPastTheFarWallIsBlocked() {
+        ShotTunerLane.TURN_IN = 52;
+        assertFalse(firstLegClear(Alliance.BLUE, 0));
+        assertFalse(firstLegClear(Alliance.RED, 0));
+        Pose turn = ShotTunerLane.turnPoint(Alliance.BLUE);
+        Pose atTurn = new Pose(turn.x(), turn.y(), Math.toRadians(-90));
+        assertFalse(ShotTunerLane.linearLegClear(atTurn, atTurn, Field.restartPose(Alliance.BLUE, 0)));
+    }
+
+    @Test
+    public void legsFromTheTurnPointToEverySpotAreClear() {
+        for (Alliance alliance : Alliance.values()) {
+            Pose turn = ShotTunerLane.turnPoint(alliance);
+            Pose cell = ShotTunerLane.cellA(alliance);
+            Pose turnFacing = new Pose(turn.x(), turn.y(), Math.atan2(cell.y() - turn.y(), cell.x() - turn.x()));
+            for (ShotTunerLane.Spot spot : ShotTunerLane.spots(alliance)) {
+                assertTrue(alliance + " " + spot.nominalIn,
+                        ShotTunerLane.facingLegClear(turnFacing, ShotTunerLane.pose(spot), cell, turnFacing));
+            }
+        }
+    }
+
+    @Test
+    public void aStartFlushOnTheWallMayStayThatCloseButNotGetCloser() {
+        Pose corner = Field.restartPose(Alliance.BLUE, 0);
+        Pose alongWall = new Pose(corner.x(), corner.y() - 10, corner.heading());
+        assertTrue(ShotTunerLane.linearLegClear(corner, alongWall, corner));
+        Pose intoWall = new Pose(corner.x() + 0.5, corner.y() - 10, corner.heading());
+        assertFalse(ShotTunerLane.linearLegClear(corner, intoWall, corner));
+    }
+
+    @Test
+    public void aFacingLegIntoTheHiveIsBlocked() {
+        Pose cell = ShotTunerLane.cellA(Alliance.BLUE);
+        Pose from = new Pose(84.2, 121, Math.toRadians(-90));
+        Pose toward = new Pose(84.2, 100, Math.toRadians(-90));
+        assertFalse(ShotTunerLane.facingLegClear(from, toward, cell, from));
+    }
+
+    @Test
+    public void aNonFiniteLegIsBlocked() {
+        Pose from = Field.restartPose(Alliance.BLUE, 0);
+        Pose nan = new Pose(Double.NaN, 100, 0);
+        assertFalse(ShotTunerLane.linearLegClear(from, nan, from));
+        assertFalse(ShotTunerLane.linearLegClear(nan, from, nan));
+    }
 }
