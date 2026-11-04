@@ -148,10 +148,29 @@ public class ServoTuner extends NextOpMode {
         paste("Intake.java", "GATE_CLOSED_POSITION", gateClosed);
         paste("FlowerArm.java", "DEPLOYED_POSITION", flowerDeployed);
         paste("FlowerArm.java", "STOWED_POSITION", flowerStowed);
-        paste("Hood.java", "MIN_POSITION", hoodMin);
-        paste("Hood.java", "MAX_POSITION", hoodMax);
-        paste("Hood.java", "STOW_POSITION", hoodStow);
+        pasteHood();
         tele.endFrame();
+    }
+
+    /**
+     * Hood clamps every position to [MIN_POSITION, MAX_POSITION], so once both limits are marked MIN is the smaller
+     * mark and MAX the larger. A single mark prints under its own name (min/max with the unmarked NaN would hide it).
+     */
+    private void pasteHood() {
+        boolean bothLimits = !Double.isNaN(hoodMin) && !Double.isNaN(hoodMax);
+        double low = bothLimits ? Math.min(hoodMin, hoodMax) : hoodMin;
+        double high = bothLimits ? Math.max(hoodMin, hoodMax) : hoodMax;
+        if (bothLimits && hoodMin > hoodMax) {
+            tele.add("hood marks", "marked in reverse order: the lines below are swapped");
+        } else if (bothLimits && hoodMin == hoodMax) {
+            tele.add("hood marks", "MIN equals MAX: the hood cannot move");
+        }
+        if (bothLimits && !Double.isNaN(hoodStow) && (hoodStow < low || hoodStow > high)) {
+            tele.add("hood marks", "stow is outside the limits: Hood clamps it to the nearer limit");
+        }
+        paste("Hood.java", "MIN_POSITION", low);
+        paste("Hood.java", "MAX_POSITION", high);
+        paste("Hood.java", "STOW_POSITION", hoodStow);
     }
 
     /** One paste-ready line once a value is marked. Locale.US: Java needs a dot as the decimal point. */

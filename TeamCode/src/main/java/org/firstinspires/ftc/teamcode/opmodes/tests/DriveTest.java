@@ -7,6 +7,7 @@ import com.pedropathing.math.Velocity;
 
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.field.Field;
+import org.firstinspires.ftc.teamcode.field.HiveCell;
 import org.firstinspires.ftc.teamcode.input.DriverInput;
 import org.firstinspires.ftc.teamcode.util.MathUtil;
 import org.firstinspires.ftc.teamcode.util.RobotTelemetry;
@@ -42,6 +43,8 @@ public class DriveTest extends NextOpMode {
         this.robot = robot;
         tele = new RobotTelemetry(telemetry);
         robot.bindHardware(hardwareMap);
+        // The turret tracks cell A; Robot.cell otherwise carries over from the previous OpMode.
+        robot.setCell(HiveCell.A);
         robot.initFollower(hardwareMap, Field.startPose(robot.alliance()));
 
         pad = new CommandGamepad(gamepad1);
