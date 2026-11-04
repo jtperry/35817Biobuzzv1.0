@@ -32,9 +32,18 @@ public final class ShotTunerLane {
     /** Side leg direction from the turn point, degrees, blue (180 = west, 0 = east). */
     public static double SIDE_DEG = 180;
 
-    /** A valid spot's footprint stays this far inside the walls and clear of the hive frame, inches. */
+    /**
+     * A valid spot's footprint stays this far inside the walls and clear of the hive frame, inches. A negative or
+     * NaN value fails closed: every spot is invalid ("wall") and every pose and leg check fails.
+     */
     public static double WALL_MARGIN_IN = 1;
     public static double FRAME_MARGIN_IN = 2;
+
+    /**
+     * A leg's start pose may be this far past a wall (pose error, a restart slot measured a hair off) and still
+     * plan; farther past and every leg check fails (see pastWall). Fixed, not a tunable.
+     */
+    public static final double START_PAST_WALL_MAX_IN = 0.5;
 
     /** Cap on the spot count, so a tiny STEP_IN or a huge END_IN typed into Panels cannot hang the OpMode. */
     private static final int MAX_SPOTS = 1000;
@@ -45,6 +54,10 @@ public final class ShotTunerLane {
     private static final int MAX_SAMPLES = 2000;
     /** Rounding slack for a start flush on a wall (restart slot 0 is in the corner). */
     private static final double WALL_SLACK_IN = 1e-6;
+
+    /** Spot and leg block reasons. */
+    static final String WALL = "wall";
+    static final String HIVE_FRAME = "hive frame";
 
     public static final class Spot {
 
@@ -73,13 +86,18 @@ public final class ShotTunerLane {
     private ShotTunerLane() {
     }
 
-    /** Spots in lane order. A step that is not positive gives START_IN alone; at most MAX_SPOTS. */
+    /**
+     * Spots in lane order, START_IN to END_IN inclusive. A step that is not positive (0, negative, NaN) gives the
+     * START_IN spot alone; END_IN below START_IN gives none; at most MAX_SPOTS. Validity uses the full margins.
+     */
     public static List<Spot> spots(Alliance alliance) {
         double steps = STEP_IN > 0 ? Math.floor((END_IN - START_IN) / STEP_IN + 1e-6) + 1 : 1;
         int count = (int) Math.min(MAX_SPOTS, steps);
         List<Spot> spots = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            spots.add(spot(alliance, Math.round((START_IN + i * STEP_IN) * 10) / 10.0));
+            // The first nominal is START_IN itself: START_IN + 0 * STEP_IN is NaN for a non-finite step.
+            double nominal = i == 0 ? START_IN : START_IN + i * STEP_IN;
+            spots.add(spot(alliance, Math.round(nominal * 10) / 10.0));
         }
         return spots;
     }
@@ -102,30 +120,66 @@ public final class ShotTunerLane {
     }
 
     /**
-     * True if the footprint stays inside the walls and clear of the hive frame (the spot margins) along a straight
-     * leg whose heading turns linearly the shortest way from from's heading to to's (Pedro linear()). start = where
-     * the move began: a robot that starts closer to a wall than WALL_MARGIN_IN may stay that close, never closer.
+     * True if the footprint stays inside the walls and clear of the hive frame along a straight leg whose heading
+     * turns linearly the shortest way from from's heading to to's (Pedro linear()). start = where the move began, the
+     * wall-margin reference: per wall, the margin is WALL_MARGIN_IN, or start's own clearance to that wall when it is
+     * smaller (closer than WALL_MARGIN_IN, or a hair past), so a leg never gets closer to that wall than the start
+     * and never farther past it; the other walls keep the full WALL_MARGIN_IN. False if a pose is not finite, the
+     * margins are not valid (negative or NaN), or start is past a wall by more than START_PAST_WALL_MAX_IN.
      */
     public static boolean linearLegClear(Pose from, Pose to, Pose start) {
-        return legClear(from, to, null, MathUtil.wrapRadians(to.heading() - from.heading()), start);
+        return linearLegBlock(from, to, start).isEmpty();
     }
 
-    /** True if the footprint at this pose keeps the full spot margins (no start allowance): for the turn point. */
+    /**
+     * True if the footprint at this pose keeps the full spot margins (no start allowance): for the turn point. False
+     * if the pose is not finite or the margins are not valid (negative or NaN).
+     */
     public static boolean poseClear(Pose pose) {
-        return finite(pose) && Field.insideWalls(pose.x(), pose.y(), pose.heading(), WALL_MARGIN_IN)
+        return marginsValid() && finite(pose)
+                && Field.insideWalls(pose.x(), pose.y(), pose.heading(), WALL_MARGIN_IN)
                 && Field.clearOfFrame(pose.x(), pose.y(), pose.heading(), FRAME_MARGIN_IN);
     }
 
-    /** As linearLegClear, but the heading faces the point all along the leg (Pedro facingPoint()). */
+    /** As linearLegClear (same margins), but the heading faces the point all along the leg (Pedro facingPoint()). */
     public static boolean facingLegClear(Pose from, Pose to, Pose facing, Pose start) {
-        return legClear(from, to, facing, 0, start);
+        return legBlock(from, to, facing, 0, start).isEmpty();
     }
 
-    private static boolean legClear(Pose from, Pose to, Pose facing, double turn, Pose start) {
-        if (!finite(from) || !finite(to) || !finite(start) || (facing != null && !finite(facing))) {
+    /**
+     * True if the pose is finite and a footprint corner lies more than START_PAST_WALL_MAX_IN past a wall. Every leg
+     * check fails from such a start.
+     */
+    public static boolean pastWall(Pose pose) {
+        if (!finite(pose)) {
             return false;
         }
-        double wallMargin = Math.min(WALL_MARGIN_IN, wallClearance(start)) - WALL_SLACK_IN;
+        for (double clearance : wallClearances(pose.x(), pose.y(), pose.heading())) {
+            if (clearance < -START_PAST_WALL_MAX_IN) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * linearLegClear with the cause: "" when clear, else WALL or HIVE_FRAME (the first sample that fails). A
+     * non-finite pose, invalid margins or a start past a wall give WALL. For ShotTunerRoute's in-place reasons.
+     */
+    static String linearLegBlock(Pose from, Pose to, Pose start) {
+        return legBlock(from, to, null, MathUtil.wrapRadians(to.heading() - from.heading()), start);
+    }
+
+    private static String legBlock(Pose from, Pose to, Pose facing, double turn, Pose start) {
+        if (!marginsValid() || !finite(from) || !finite(to) || !finite(start) || (facing != null && !finite(facing))
+                || pastWall(start)) {
+            return WALL;
+        }
+        // Per wall: the full margin, or start's own clearance to that wall when it is smaller (no floor).
+        double[] wallMargins = wallClearances(start.x(), start.y(), start.heading());
+        for (int wall = 0; wall < wallMargins.length; wall++) {
+            wallMargins[wall] = Math.min(WALL_MARGIN_IN, wallMargins[wall]) - WALL_SLACK_IN;
+        }
         double length = Math.hypot(to.x() - from.x(), to.y() - from.y());
         double steps = Math.ceil(Math.max(length / SAMPLE_IN, Math.abs(turn) / SAMPLE_RAD));
         int count = (int) Math.max(1, Math.min(MAX_SAMPLES, steps));
@@ -134,22 +188,36 @@ public final class ShotTunerLane {
             double x = from.x() + t * (to.x() - from.x());
             double y = from.y() + t * (to.y() - from.y());
             double heading = facing == null ? from.heading() + t * turn : Math.atan2(facing.y() - y, facing.x() - x);
-            if (!Field.insideWalls(x, y, heading, wallMargin) || !Field.clearOfFrame(x, y, heading, FRAME_MARGIN_IN)) {
-                return false;
+            double[] clearances = wallClearances(x, y, heading);
+            for (int wall = 0; wall < clearances.length; wall++) {
+                if (clearances[wall] < wallMargins[wall]) {
+                    return WALL;
+                }
+            }
+            if (!Field.clearOfFrame(x, y, heading, FRAME_MARGIN_IN)) {
+                return HIVE_FRAME;
             }
         }
-        return true;
+        return "";
     }
 
-    /** Smallest distance from a footprint corner to a wall (negative = past it). */
-    private static double wallClearance(Pose pose) {
+    /** Footprint clearance to each wall: west, east, south, north, inches (negative = past it). */
+    private static double[] wallClearances(double x, double y, double heading) {
         double[] corners = new double[8];
-        Field.footprintCorners(pose.x(), pose.y(), pose.heading(), corners);
-        double clearance = Double.MAX_VALUE;
-        for (double value : corners) {
-            clearance = Math.min(clearance, Math.min(value, Field.SIZE_IN - value));
+        Field.footprintCorners(x, y, heading, corners);
+        double[] clearances = {Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE};
+        for (int i = 0; i < corners.length; i += 2) {
+            clearances[0] = Math.min(clearances[0], corners[i]);
+            clearances[1] = Math.min(clearances[1], Field.SIZE_IN - corners[i]);
+            clearances[2] = Math.min(clearances[2], corners[i + 1]);
+            clearances[3] = Math.min(clearances[3], Field.SIZE_IN - corners[i + 1]);
         }
-        return clearance;
+        return clearances;
+    }
+
+    /** False for a negative or NaN margin: the checks then fail closed. */
+    private static boolean marginsValid() {
+        return WALL_MARGIN_IN >= 0 && FRAME_MARGIN_IN >= 0;
     }
 
     private static boolean finite(Pose pose) {
@@ -185,10 +253,10 @@ public final class ShotTunerLane {
         String reason;
         if (!onLane) {
             reason = "off lane";
-        } else if (!Field.insideWalls(pose.x(), pose.y(), heading, WALL_MARGIN_IN)) {
-            reason = "wall";
+        } else if (!marginsValid() || !Field.insideWalls(pose.x(), pose.y(), heading, WALL_MARGIN_IN)) {
+            reason = WALL;
         } else if (!Field.clearOfFrame(pose.x(), pose.y(), heading, FRAME_MARGIN_IN)) {
-            reason = "hive frame";
+            reason = HIVE_FRAME;
         } else {
             reason = "";
         }

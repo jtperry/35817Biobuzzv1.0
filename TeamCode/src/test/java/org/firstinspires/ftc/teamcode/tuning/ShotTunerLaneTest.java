@@ -182,10 +182,91 @@ public class ShotTunerLaneTest {
 
     @Test
     public void aStepThatIsNotPositiveGivesTheStartAlone() {
-        ShotTunerLane.STEP_IN = 0;
-        List<ShotTunerLane.Spot> spots = ShotTunerLane.spots(Alliance.BLUE);
-        assertEquals(1, spots.size());
-        assertEquals(30.0, spots.get(0).nominalIn, 0.0);
+        for (double step : new double[] {0, Double.NaN, Double.NEGATIVE_INFINITY}) {
+            ShotTunerLane.STEP_IN = step;
+            List<ShotTunerLane.Spot> spots = ShotTunerLane.spots(Alliance.BLUE);
+            assertEquals("step " + step, 1, spots.size());
+            assertEquals("step " + step, 30.0, spots.get(0).nominalIn, 0.0);
+            assertTrue("step " + step, spots.get(0).valid);
+        }
+    }
+
+    @Test
+    public void anEndBeforeTheStartGivesNoSpots() {
+        ShotTunerLane.END_IN = 25;
+        assertTrue(ShotTunerLane.spots(Alliance.BLUE).isEmpty());
+    }
+
+    @Test
+    public void redHeadingsLieInMinusPiToPi() {
+        for (double side : new double[] {180, 0}) {
+            ShotTunerLane.SIDE_DEG = side;
+            for (ShotTunerLane.Spot spot : ShotTunerLane.spots(Alliance.RED)) {
+                assertTrue(spot.nominalIn + ": " + spot.heading, spot.heading >= -Math.PI && spot.heading < Math.PI);
+            }
+        }
+    }
+
+    @Test
+    public void badMarginsFailClosed() {
+        Pose from = Field.restartPose(Alliance.BLUE, 0);
+        double[][] margins = {{Double.NaN, 2}, {-1, 2}, {1, Double.NaN}};
+        for (double[] margin : margins) {
+            ShotTunerLane.WALL_MARGIN_IN = margin[0];
+            ShotTunerLane.FRAME_MARGIN_IN = margin[1];
+            String name = "wall " + margin[0] + " frame " + margin[1];
+            assertFalse(name, ShotTunerLane.poseClear(turnFacing(Alliance.BLUE)));
+            assertFalse(name, ShotTunerLane.linearLegClear(from, turnFacing(Alliance.BLUE), from));
+            assertFalse(name, ShotTunerLane.facingLegClear(turnFacing(Alliance.BLUE),
+                    ShotTunerLane.pose(ShotTunerLane.spots(Alliance.BLUE).get(0)), ShotTunerLane.cellA(Alliance.BLUE),
+                    turnFacing(Alliance.BLUE)));
+            for (Alliance alliance : Alliance.values()) {
+                List<ShotTunerLane.Spot> spots = ShotTunerLane.spots(alliance);
+                assertEquals(11, spots.size());
+                for (ShotTunerLane.Spot spot : spots) {
+                    assertFalse(name, spot.valid);
+                    assertEquals(name, "wall", spot.reason);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void aStartNearOneWallRelaxesOnlyThatWall() {
+        // Heading -90: the right side faces the west wall, so this start keeps 0.5 in to it.
+        double x = Field.ROBOT_SIDE_IN + 0.5;
+        Pose start = new Pose(x, 72, Math.toRadians(-90));
+        assertTrue(ShotTunerLane.linearLegClear(start, new Pose(x, 40, Math.toRadians(-90)), start));
+        assertFalse(ShotTunerLane.linearLegClear(start, new Pose(x - 0.2, 40, Math.toRadians(-90)), start));
+        // 0.8 in from the north wall (back edge) and from the south wall (front edge): closer than WALL_MARGIN_IN.
+        double north = Field.SIZE_IN - Field.ROBOT_BACK_IN - 0.8;
+        assertFalse(ShotTunerLane.linearLegClear(start, new Pose(x, north, Math.toRadians(-90)), start));
+        double south = Field.ROBOT_FRONT_IN + 0.8;
+        assertFalse(ShotTunerLane.linearLegClear(start, new Pose(x, south, Math.toRadians(-90)), start));
+        // The full margin on the other walls still passes.
+        assertTrue(ShotTunerLane.linearLegClear(start, new Pose(x, north - 0.3, Math.toRadians(-90)), start));
+    }
+
+    @Test
+    public void aStartAHairPastAWallMayMoveAwayButNotFartherPast() {
+        Pose slot = Field.restartPose(Alliance.BLUE, 0);
+        // Slot 0's left side is flush on the east wall: 0.02 in farther is 0.02 in past it.
+        Pose start = new Pose(slot.x() + 0.02, slot.y(), slot.heading());
+        assertFalse(ShotTunerLane.pastWall(start));
+        assertTrue(ShotTunerLane.linearLegClear(start, new Pose(start.x() - 10, start.y(), start.heading()), start));
+        assertTrue(ShotTunerLane.linearLegClear(start, start, start));
+        assertFalse(ShotTunerLane.linearLegClear(start, new Pose(start.x() + 0.03, start.y() - 10,
+                start.heading()), start));
+
+        Pose past = new Pose(slot.x() + 1, slot.y(), slot.heading());
+        assertTrue(ShotTunerLane.pastWall(past));
+        assertFalse(ShotTunerLane.linearLegClear(past, new Pose(past.x() - 10, past.y(), past.heading()), past));
+        assertFalse(ShotTunerLane.linearLegClear(past, past, past));
+        Pose cell = ShotTunerLane.cellA(Alliance.BLUE);
+        assertFalse(ShotTunerLane.facingLegClear(past, new Pose(past.x() - 10, past.y(), past.heading()), cell,
+                past));
+        assertFalse(ShotTunerLane.pastWall(slot));
+        assertFalse(ShotTunerLane.pastWall(new Pose(Double.NaN, 100, 0)));
     }
 
     @Test
