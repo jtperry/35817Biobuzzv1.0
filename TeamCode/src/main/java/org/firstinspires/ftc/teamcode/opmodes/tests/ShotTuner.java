@@ -27,6 +27,7 @@ import org.firstinspires.ftc.teamcode.tuning.ShotTunerLane;
 import org.firstinspires.ftc.teamcode.tuning.ShotTunerLog;
 import org.firstinspires.ftc.teamcode.tuning.ShotTunerRoute;
 import org.firstinspires.ftc.teamcode.tuning.ShotTunerSession;
+import org.firstinspires.ftc.teamcode.tuning.ShotTunerSettle;
 import org.firstinspires.ftc.teamcode.util.FieldDrawing;
 import org.firstinspires.ftc.teamcode.util.MathUtil;
 import org.firstinspires.ftc.teamcode.util.RobotTelemetry;
@@ -61,8 +62,9 @@ import dev.nextftc.robot.triggers.CommandGamepad;
 public class ShotTuner extends NextOpMode {
 
     /**
-     * Path speed cap, percent, used as 5-100 (not finite: 40); also caps the final hold until the robot has settled at
-     * the spot. Once settled, the hold at the spot runs at full power (recoil).
+     * Path speed cap, percent, used as 5-100 (not finite: 40); also caps the final hold until the move arrives
+     * (ShotTunerSettle). Once arrived, the hold at the spot runs at full power (recoil); a move that stops short keeps
+     * the cap.
      */
     public static double DRIVE_PCT = 40;
     /** Applied only when the result is finite. */
@@ -81,14 +83,13 @@ public class ShotTuner extends NextOpMode {
     private static final double DEFAULT_STICK_CANCEL = 0.2;
     private static final double DEFAULT_MIN_SHOT_RPM = 1000;
     private static final double LOWEST_MIN_SHOT_RPM = 500;
-    /** A move that goes less than this far and turns less than STALL_TURN_RAD for STALL_NANOS is stopped. */
+    /**
+     * No progress: a move that goes less than this far and turns less than STALL_TURN_RAD for STALL_NANOS. Before
+     * the settle phase the watchdog stops it; in the settle phase ShotTunerSettle decides.
+     */
     private static final double STALL_MOVE_IN = 1.0;
     private static final double STALL_TURN_RAD = Math.toRadians(3);
     private static final long STALL_NANOS = 3_000_000_000L;
-    /** A move ends (arrive()) once the robot is this close to the spot, or SETTLE_NANOS after the final hold began. */
-    private static final double ARRIVED_IN = 1.0;
-    private static final double ARRIVED_RAD = Math.toRadians(2);
-    private static final long SETTLE_NANOS = 2_000_000_000L;
     /** After the session is done, "coasting down" while the measured rpm is above this. */
     private static final double STOPPED_RPM = 100;
     private static final double SPOT_RADIUS_IN = 1.5;
@@ -117,6 +118,8 @@ public class ShotTuner extends NextOpMode {
     private String saveError = "";
     /** Why the last move was refused or stopped; "" when none. */
     private String moveProblem = "";
+    /** The last move was refused (its plan was blocked). */
+    private boolean pathBlocked = false;
 
     private Command move;
     /** The spot the robot last arrived at; null while moving and after manual drive. Picks the route. */
@@ -166,8 +169,12 @@ public class ShotTuner extends NextOpMode {
     /** The target rpm the current volley is measured at. */
     private double volleyRpm = Double.NaN;
     private double volleyMinRpm = Double.NaN;
-    /** When the running move's final hold began (its settle wait). */
+    /** When the running move's settle phase (after its final hold) began. */
     private long settleStartNanos;
+    /** The running move is in its settle phase: ShotTunerSettle decides in place of the no-progress watchdog. */
+    private boolean settling = false;
+    /** The settle phase's latest decision. */
+    private ShotTunerSettle.Decision settleDecision = ShotTunerSettle.Decision.WAIT;
 
     public ShotTuner(Robot robot) {
         super(robot, BulkReadHook.INSTANCE, robot.initCheck());
@@ -384,6 +391,7 @@ public class ShotTuner extends NextOpMode {
         ShotTunerLane.Spot spot = session.current();
         if (spot == null) {
             moveProblem = "";
+            pathBlocked = false;
             // X on the last spot while driving to it: the session is done, so stop the old move.
             if (moving()) {
                 stopMove();
@@ -398,6 +406,7 @@ public class ShotTuner extends NextOpMode {
         if (plan.blocked) {
             // Drive nothing: the driver gets closer to the lane by hand.
             moveProblem = "PATH BLOCKED: " + plan.reason + ". Drive closer to the lane by hand, then press B.";
+            pathBlocked = true;
             if (wasMoving) {
                 heldSpot = null;
                 robot.follower().hold(robot.pose());
@@ -405,6 +414,7 @@ public class ShotTuner extends NextOpMode {
             return;
         }
         moveProblem = "";
+        pathBlocked = false;
         move = moveTo(spot, plan);
         moveNominal = spot.nominalIn;
         moveSummary = plan.summary;
@@ -421,8 +431,10 @@ public class ShotTuner extends NextOpMode {
 
     /**
      * The plan as commands: the drive limit, a path per translating leg (an in-place leg is left to the final hold),
-     * the hold at the spot, a wait until the robot has settled there (still under the drive limit, and still moving()
-     * for the stick stop and the watchdog), then arrive().
+     * the hold at the spot, then the settle phase: still under the drive limit and still moving() (a stick stops it),
+     * with ShotTunerSettle deciding each loop in place of the no-progress watchdog (which covers only the paths
+     * before it). The move then ends with arrive() (ARRIVE: the only place a move lifts the drive limit) or
+     * stopShort() (STOP_SHORT: holds where the robot is, under the drive limit).
      */
     private Command moveTo(ShotTunerLane.Spot spot, ShotTunerRoute.Plan plan) {
         Follower follower = robot.follower();
@@ -440,45 +452,71 @@ public class ShotTuner extends NextOpMode {
             }
         }
         Pose goal = ShotTunerLane.pose(spot);
-        // Ivy's hold(follower, pose) is instant: without the wait, arrive() would lift the drive limit while the hold
-        // still turns or settles. The wait restarts the watchdog's progress mark, so its SETTLE_NANOS bound always
-        // ends it before STALL_NANOS can (a capped hold may sit still just outside ARRIVED_IN / ARRIVED_RAD).
+        // Ivy's hold(follower, pose) is instant: without the settle phase, arrive() would lift the drive limit while
+        // the hold still turns or settles. Its start restarts the progress mark, so the stall window starts with it.
         return drive.then(hold(follower, goal))
-                .then(Commands.waitUntil(() -> settled(goal)).setStart(() -> {
+                .then(Commands.waitUntil(() -> settleDecided(goal)).setStart(() -> {
                     settleStartNanos = System.nanoTime();
+                    settling = true;
                     Pose now = robot.pose();
                     markProgress(now.x(), now.y(), now.heading());
                 }))
-                .then(Commands.instant(() -> arrive(spot)));
+                .then(Commands.instant(() -> endSettle(spot)));
     }
 
-    /** At the goal, or SETTLE_NANOS after the final hold began. */
-    private boolean settled(Pose goal) {
-        return atSpot(goal) || System.nanoTime() - settleStartNanos >= SETTLE_NANOS;
+    /** One settle decision per loop of the settle phase; true once it is ARRIVE or STOP_SHORT. */
+    private boolean settleDecided(Pose goal) {
+        Pose now = robot.pose();
+        settleDecision = ShotTunerSettle.decide(Math.hypot(now.x() - goal.x(), now.y() - goal.y()),
+                MathUtil.wrapRadians(now.heading() - goal.heading()), progressing(now),
+                System.nanoTime() - settleStartNanos);
+        return settleDecision != ShotTunerSettle.Decision.WAIT;
     }
 
-    /** Within ARRIVED_IN and ARRIVED_RAD of the spot's pose. */
+    /** The last step of a move: arrived, or stopped short. */
+    private void endSettle(ShotTunerLane.Spot spot) {
+        settling = false;
+        if (settleDecision == ShotTunerSettle.Decision.ARRIVE) {
+            arrive(spot);
+        } else {
+            stopShort();
+        }
+    }
+
+    /** Within ShotTunerSettle's ARRIVED tolerance of the spot's pose. */
     private boolean atSpot(Pose spot) {
         Pose now = robot.pose();
-        return Math.hypot(now.x() - spot.x(), now.y() - spot.y()) <= ARRIVED_IN
-                && Math.abs(MathUtil.wrapRadians(now.heading() - spot.heading())) <= ARRIVED_RAD;
+        return Math.hypot(now.x() - spot.x(), now.y() - spot.y()) <= ShotTunerSettle.ARRIVED_IN
+                && Math.abs(MathUtil.wrapRadians(now.heading() - spot.heading())) <= ShotTunerSettle.ARRIVED_RAD;
     }
 
-    /** No-progress watchdog: a running move that neither moves nor turns for STALL_NANOS is stopped. */
+    /**
+     * No-progress watchdog, before the settle phase only: a running move that neither moves nor turns for
+     * STALL_NANOS is stopped. In the settle phase ShotTunerSettle decides instead, from the same progress mark.
+     */
     private void checkProgress() {
-        if (!moving()) {
+        if (!moving() || settling) {
             return;
         }
         Pose now = robot.pose();
-        if (Math.hypot(now.x() - progressX, now.y() - progressY) >= STALL_MOVE_IN
-                || Math.abs(MathUtil.wrapRadians(now.heading() - progressH)) >= STALL_TURN_RAD) {
-            markProgress(now.x(), now.y(), now.heading());
-        } else if (System.nanoTime() - progressNanos >= STALL_NANOS) {
+        if (!progressing(now)) {
             stopMove();
             heldSpot = null;
             robot.follower().hold(now);
             moveProblem = "STOPPED: no progress for 3 s (blocked?)";
         }
+    }
+
+    /**
+     * Moves the progress mark to now when the robot has moved STALL_MOVE_IN or turned STALL_TURN_RAD since the mark;
+     * true while the mark is less than STALL_NANOS old.
+     */
+    private boolean progressing(Pose now) {
+        if (Math.hypot(now.x() - progressX, now.y() - progressY) >= STALL_MOVE_IN
+                || Math.abs(MathUtil.wrapRadians(now.heading() - progressH)) >= STALL_TURN_RAD) {
+            markProgress(now.x(), now.y(), now.heading());
+        }
+        return System.nanoTime() - progressNanos < STALL_NANOS;
     }
 
     private void markProgress(double x, double y, double heading) {
@@ -488,7 +526,10 @@ public class ShotTuner extends NextOpMode {
         progressNanos = System.nanoTime();
     }
 
-    /** End of a move: full power for the hold (recoil), and rpm + hood seeded at a new spot. */
+    /**
+     * End of a move that arrived (ShotTunerSettle ARRIVE), the only place a move lifts the drive limit: full power for
+     * the hold at the spot (recoil), and rpm + hood seeded at a new spot.
+     */
     private void arrive(ShotTunerLane.Spot spot) {
         LimitedMecanum.maxPower = 1.0;
         heldSpot = spot;
@@ -509,6 +550,16 @@ public class ShotTuner extends NextOpMode {
         }
     }
 
+    /**
+     * End of a move that did not arrive (ShotTunerSettle STOP_SHORT): hold where the robot is (nothing to push
+     * toward), no seed, and the drive limit stays (stopMove() lifts it: end(), a stick or the next button). B retries.
+     */
+    private void stopShort() {
+        heldSpot = null;
+        robot.follower().hold(robot.pose());
+        moveProblem = "STOPPED: did not settle at the spot (blocked?)";
+    }
+
     private boolean moving() {
         return move != null && move.isScheduled();
     }
@@ -518,6 +569,7 @@ public class ShotTuner extends NextOpMode {
             move.cancel();
         }
         move = null;
+        settling = false;
         LimitedMecanum.maxPower = 1.0;
     }
 
@@ -684,13 +736,23 @@ public class ShotTuner extends NextOpMode {
             return String.format(Locale.US, "driving to %.1f in: %s, %.0f in. Touch a stick = stop the move.",
                     moveNominal, moveSummary, moveLengthIn);
         }
-        if (heldSpot != null || (current != null && atSpot(ShotTunerLane.pose(current)))) {
-            return "holding the spot";
+        if (heldSpot != null && heldSpot == current) {
+            // Arrived within NEAR but not ARRIVED, or pushed off since: the hold still pulls toward the spot.
+            return atSpot(ShotTunerLane.pose(current)) ? "holding the spot"
+                    : String.format(Locale.US, "holding the spot (not within %.0f in / %.0f deg yet)",
+                    ShotTunerSettle.ARRIVED_IN, Math.toDegrees(ShotTunerSettle.ARRIVED_RAD));
+        }
+        if (heldSpot != null) {
+            // The session moved on but its next move was refused, or the session is done: the robot holds where it
+            // arrived.
+            return pathBlocked ? "holding the last spot (PATH BLOCKED: drive closer by hand, then B)"
+                    : "holding the last spot";
         }
         if (current == null) {
             return "stopped";
         }
-        // The watchdog stopped the move, or a move was refused while one ran: the robot holds where it stopped.
+        // The watchdog stopped the move, the settle stopped short, or a move was refused while one ran: the robot
+        // holds where it stopped.
         return tuned ? "stopped short of the spot (A = save here, B = retry)"
                 : "stopped short of the spot (A / B = retry)";
     }
