@@ -13,8 +13,19 @@ public class HoodTest {
     private Hood hood;
     private double written;
 
+    private double savedMin;
+    private double savedMax;
+    private double savedStow;
+    private double savedSlew;
+    private double savedSettleTolerance;
+
     @Before
     public void setUp() {
+        savedMin = Hood.MIN_POSITION;
+        savedMax = Hood.MAX_POSITION;
+        savedStow = Hood.STOW_POSITION;
+        savedSlew = Hood.SLEW_POS_PER_SEC;
+        savedSettleTolerance = Hood.SETTLE_TOLERANCE;
         Hood.MIN_POSITION = 0.0254;
         Hood.MAX_POSITION = 0.45;
         Hood.STOW_POSITION = 0.0254;
@@ -27,11 +38,11 @@ public class HoodTest {
 
     @After
     public void tearDown() {
-        Hood.MIN_POSITION = 0.0254;
-        Hood.MAX_POSITION = 0.45;
-        Hood.STOW_POSITION = 0.0254;
-        Hood.SLEW_POS_PER_SEC = 1.5;
-        Hood.SETTLE_TOLERANCE = 0.01;
+        Hood.MIN_POSITION = savedMin;
+        Hood.MAX_POSITION = savedMax;
+        Hood.STOW_POSITION = savedStow;
+        Hood.SLEW_POS_PER_SEC = savedSlew;
+        Hood.SETTLE_TOLERANCE = savedSettleTolerance;
     }
 
     @Test

@@ -9,8 +9,26 @@ import org.junit.Test;
 
 public class ShotTableTest {
 
+    private double savedRpmScale;
+    private double savedExitEfficiency;
+    private double savedLaunchHeight;
+    private double savedCellHeight;
+    private double[] savedFlightKeys;
+    private double[] savedFlightValues;
+
     @Before
     public void setUp() {
+        savedRpmScale = ShotTable.RPM_SCALE;
+        savedExitEfficiency = ShotTable.BALL_EXIT_EFFICIENCY;
+        savedLaunchHeight = ShotTable.LAUNCH_HEIGHT_IN;
+        savedCellHeight = ShotTable.CELL_HEIGHT_IN;
+        int points = ShotTable.FLIGHT_S.size();
+        savedFlightKeys = new double[points];
+        savedFlightValues = new double[points];
+        for (int i = 0; i < points; i++) {
+            savedFlightKeys[i] = ShotTable.FLIGHT_S.keyAt(i);
+            savedFlightValues[i] = ShotTable.FLIGHT_S.valueAt(i);
+        }
         ShotTable.RPM_SCALE = 1.0;
         ShotTable.BALL_EXIT_EFFICIENCY = 0.5;
         ShotTable.LAUNCH_HEIGHT_IN = 12.5;
@@ -20,8 +38,14 @@ public class ShotTableTest {
 
     @After
     public void tearDown() {
-        ShotTable.RPM_SCALE = 1.0;
+        ShotTable.RPM_SCALE = savedRpmScale;
+        ShotTable.BALL_EXIT_EFFICIENCY = savedExitEfficiency;
+        ShotTable.LAUNCH_HEIGHT_IN = savedLaunchHeight;
+        ShotTable.CELL_HEIGHT_IN = savedCellHeight;
         ShotTable.FLIGHT_S.clear();
+        for (int i = 0; i < savedFlightKeys.length; i++) {
+            ShotTable.FLIGHT_S.put(savedFlightKeys[i], savedFlightValues[i]);
+        }
     }
 
     @Test

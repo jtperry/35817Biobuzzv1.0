@@ -97,16 +97,20 @@ public class FlowerArm implements Mechanism {
         rawMode = true;
     }
 
+    /** deploy, stow and toggle leave RAW: the arm walks on from the last raw position (periodic() keeps it in sync). */
     public void deploy() {
         deployed = true;
+        rawMode = false;
     }
 
     public void stow() {
         deployed = false;
+        rawMode = false;
     }
 
     public void toggle() {
         deployed = !deployed;
+        rawMode = false;
     }
 
     public boolean isDeployed() {

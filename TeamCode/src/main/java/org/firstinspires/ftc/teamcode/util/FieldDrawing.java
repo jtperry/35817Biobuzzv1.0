@@ -17,13 +17,18 @@ public final class FieldDrawing {
     private FieldDrawing() {
     }
 
-    /** Robot circle + line to its front, then send. */
+    /**
+     * Robot circle + line to its front, then send. A null or non-finite pose still sends the shapes queued by line() and
+     * circle(), without the robot, so they never pile up into a later frame (or the next OpMode's).
+     */
     public static void robot(Pose pose) {
-        if (pose == null || Double.isNaN(pose.x()) || Double.isNaN(pose.y()) || Double.isNaN(pose.heading())) {
-            return;
-        }
         // Pedro coordinates. Set every frame: update() resets them.
         FIELD.setOffsets(PanelsField.INSTANCE.getPresets().getPEDRO_PATHING());
+        if (pose == null || !Double.isFinite(pose.x()) || !Double.isFinite(pose.y())
+                || !Double.isFinite(pose.heading())) {
+            FIELD.update();
+            return;
+        }
         FIELD.setStyle(ROBOT_STYLE);
         FIELD.moveCursor(pose.x(), pose.y());
         FIELD.circle(ROBOT_RADIUS_IN);
