@@ -441,9 +441,14 @@ public class ShotTuner extends NextOpMode {
         }
         Pose goal = ShotTunerLane.pose(spot);
         // Ivy's hold(follower, pose) is instant: without the wait, arrive() would lift the drive limit while the hold
-        // still turns or settles.
+        // still turns or settles. The wait restarts the watchdog's progress mark, so its SETTLE_NANOS bound always
+        // ends it before STALL_NANOS can (a capped hold may sit still just outside ARRIVED_IN / ARRIVED_RAD).
         return drive.then(hold(follower, goal))
-                .then(Commands.waitUntil(() -> settled(goal)).setStart(() -> settleStartNanos = System.nanoTime()))
+                .then(Commands.waitUntil(() -> settled(goal)).setStart(() -> {
+                    settleStartNanos = System.nanoTime();
+                    Pose now = robot.pose();
+                    markProgress(now.x(), now.y(), now.heading());
+                }))
                 .then(Commands.instant(() -> arrive(spot)));
     }
 
