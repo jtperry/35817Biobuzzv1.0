@@ -552,6 +552,62 @@ public class ShotTunerRouteTest {
         }
     }
 
+    /**
+     * BF4 review spec:M2: a rule-5 merged in-place leg (start and target both within MIN_LEG_IN of the turn point)
+     * whose diagonal and turn at the target position pass, but whose whole turn made at the start position (Pedro's
+     * hold turning before it translates) does not: blocked. Found by a grid search over starts within 1 in of the
+     * turn-point spot (0.05 in steps, every degree), first move and held null, for TURN_IN 30-51 and the frame or
+     * wall margin varied: with the default lane no pose fails only the start sweep; these two are inside wide hit
+     * regions (every pose within 0.1 in and 3 deg also fails only there).
+     * - Hive: default TURN_IN 35 with FRAME_MARGIN_IN 11; start 0.3 in west and 0.8 in south of the 35 in spot (blue),
+     *   facing 180 deg: turning to -90 deg there swings the front corner into the frame margin.
+     * - Wall: TURN_IN 45 with WALL_MARGIN_IN 2; start 0.65 in west and 0.55 in north of the 45 in spot (blue), facing
+     *   180 deg: turning to -90 deg there swings a corner closer to the north wall than the start pose was.
+     * Red = the same poses rotated 180 deg.
+     */
+    @Test
+    public void aRule5TurnInPlaceThatFailsOnlyAtItsStartPositionIsBlocked() {
+        ShotTunerLane.FRAME_MARGIN_IN = 11;
+        assertOnlyTheStartSweepBlocks(35, -0.3, -0.8, "hive frame", "turn in place hits the hive");
+        ShotTunerLane.FRAME_MARGIN_IN = 2;
+        ShotTunerLane.TURN_IN = 45;
+        ShotTunerLane.WALL_MARGIN_IN = 2;
+        assertOnlyTheStartSweepBlocks(45, -0.65, 0.55, "wall", "turn in place hits a wall");
+    }
+
+    /**
+     * Start = the blue spot at nominal moved by (dx, dy), facing 180 deg (rotated for red): the premises, then a
+     * rule-5 plan blocked with reason.
+     */
+    private static void assertOnlyTheStartSweepBlocks(double nominal, double dx, double dy, String block,
+                                                      String reason) {
+        ShotTunerLane.Spot blue = spot(Alliance.BLUE, nominal);
+        for (Alliance alliance : Alliance.values()) {
+            String name = alliance + " " + reason;
+            ShotTunerLane.Spot target = spot(alliance, nominal);
+            Pose goal = ShotTunerLane.pose(target);
+            Pose start = pose(alliance, blue.x + dx, blue.y + dy, 180);
+            // Premises: a valid spot at the turn point, a clear turn point, a start not past a wall, a sub-inch leg.
+            assertTrue(name, target.valid);
+            assertTrue(name, ShotTunerLane.poseClear(turnFacing(alliance)));
+            assertFalse(name, ShotTunerLane.pastWall(start));
+            assertTrue(name, length(ShotTunerLane.turnPoint(alliance), goal) < ShotTunerRoute.MIN_LEG_IN);
+            assertTrue(name, length(start, goal) < ShotTunerRoute.MIN_LEG_IN);
+            // Only the start-position sweep fails.
+            assertEquals(name, "", ShotTunerLane.linearLegBlock(start, goal, start));
+            assertEquals(name, "", ShotTunerLane.linearLegBlock(new Pose(goal.x(), goal.y(), start.heading()), goal,
+                    start));
+            assertEquals(name, block, ShotTunerLane.linearLegBlock(start,
+                    new Pose(start.x(), start.y(), goal.heading()), start));
+            // Rule 4 (after a nudge) fails the same sweep and falls through to rule 5, which blocks the plan.
+            for (boolean firstMove : new boolean[] {true, false}) {
+                ShotTunerRoute.Plan plan = plan(alliance, start, null, target, firstMove);
+                assertTrue(name, plan.blocked);
+                assertEquals(name, reason, plan.reason);
+            }
+        }
+    }
+
     // ---- blocked ----
 
     @Test
