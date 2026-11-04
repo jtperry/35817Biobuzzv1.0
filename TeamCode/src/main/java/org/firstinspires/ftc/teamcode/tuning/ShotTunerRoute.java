@@ -157,7 +157,7 @@ public final class ShotTunerRoute {
         // the start pose, facing cell A only if the robot already faces it.
         Leg merged = skipToTurn ? straight(start, goal, cell) : new Leg(start, goal, false);
         if (merged.inPlace()) {
-            String block = ShotTunerLane.linearLegBlock(start, goal, start);
+            String block = linearBlock(start, goal, start);
             if (!block.isEmpty()) {
                 return blocked(ShotTunerLane.HIVE_FRAME.equals(block) ? "turn in place hits the hive"
                         : "turn in place hits a wall");
@@ -179,7 +179,20 @@ public final class ShotTunerRoute {
     /** The leg's own check; start is the move's wall-margin reference. In-place legs are linear (swept by angle). */
     private static boolean clear(Leg leg, Pose cell, Pose start) {
         return leg.facingCell ? ShotTunerLane.facingLegClear(leg.from, leg.to, cell, start)
-                : ShotTunerLane.linearLegClear(leg.from, leg.to, start);
+                : linearBlock(leg.from, leg.to, start).isEmpty();
+    }
+
+    /**
+     * ShotTunerLane.linearLegBlock, plus, for a turn of MIN_TURN_DEG or more, the whole turn swept at to's position:
+     * Pedro's heading follows the path's closest point, so on a short leg with a big turn the robot stops
+     * translating first and makes the rest of the turn at the end. "" when clear, else the first cause.
+     */
+    private static String linearBlock(Pose from, Pose to, Pose start) {
+        String block = ShotTunerLane.linearLegBlock(from, to, start);
+        if (block.isEmpty() && Math.abs(MathUtil.wrapRadians(to.heading() - from.heading())) >= MIN_TURN_RAD) {
+            block = ShotTunerLane.linearLegBlock(new Pose(to.x(), to.y(), from.heading()), to, start);
+        }
+        return block;
     }
 
     /** Farther from cell A than the turn point (the turn point itself is on the back leg). */

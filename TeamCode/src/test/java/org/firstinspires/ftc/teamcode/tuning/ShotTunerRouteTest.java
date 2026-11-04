@@ -102,9 +102,22 @@ public class ShotTunerRouteTest {
         assertEquals(message + " heading", 0.0, MathUtil.wrapRadians(expected.heading() - actual.heading()), EPS);
     }
 
+    /**
+     * The planner's check for a leg: facing legs facingLegClear; linear (and in-place) legs linearLegClear, plus,
+     * when they turn MIN_TURN_DEG or more, the turn swept at the end position (endTurnClear).
+     */
     private static boolean legClear(ShotTunerRoute.Leg leg, Pose cell, Pose start) {
-        return leg.facingCell ? ShotTunerLane.facingLegClear(leg.from, leg.to, cell, start)
-                : ShotTunerLane.linearLegClear(leg.from, leg.to, start);
+        if (leg.facingCell) {
+            return ShotTunerLane.facingLegClear(leg.from, leg.to, cell, start);
+        }
+        return ShotTunerLane.linearLegClear(leg.from, leg.to, start)
+                && (Math.abs(MathUtil.wrapRadians(leg.to.heading() - leg.from.heading()))
+                < Math.toRadians(ShotTunerRoute.MIN_TURN_DEG) || endTurnClear(leg.from, leg.to, start));
+    }
+
+    /** The whole turn from from's heading to to's, made at to's position (the heading PID finishing late). */
+    private static boolean endTurnClear(Pose from, Pose to, Pose start) {
+        return ShotTunerLane.linearLegClear(new Pose(to.x(), to.y(), from.heading()), to, start);
     }
 
     /**
@@ -345,6 +358,97 @@ public class ShotTunerRouteTest {
             assertTrue(length(start, target) < ShotTunerRoute.MIN_LEG_IN);
             assertEquals("wall", ShotTunerLane.linearLegBlock(start, target, start));
             assertViaTurnPoint(alliance, plan(alliance, start, null, spot(alliance, 80), false), start, target);
+        }
+    }
+
+    /**
+     * Runtime finding I1: Pedro's heading follows the path's closest point, so on a short leg with a big turn the
+     * robot finishes translating first and makes the rest of the turn at the target. The 80 in spot nudged 2 in east
+     * and turned to 170, 180 or -170 deg: the direct leg's own sweep passes, but the turn made at the 80 in spot
+     * swings a corner past the west wall, so the plan goes via the turn point.
+     */
+    @Test
+    public void aDirectLegWhoseTurnHitsAWallAtTheTargetGoesViaTheTurnPoint() {
+        ShotTunerLane.Spot blue = spot(Alliance.BLUE, 80);
+        for (Alliance alliance : Alliance.values()) {
+            Pose target = target(alliance, 80);
+            for (double deg : new double[] {180, 170, -170}) {
+                Pose start = pose(alliance, blue.x + 2, blue.y, deg);
+                String name = alliance + " " + deg;
+                assertTrue(name, ShotTunerLane.linearLegClear(start, target, start));
+                assertFalse(name, endTurnClear(start, target, start));
+                assertViaTurnPoint(alliance, plan(alliance, start, null, spot(alliance, 80), false), start, target);
+            }
+        }
+    }
+
+    // ---- via the turn point, merged legs ----
+
+    /** Held at the 35 in spot (= the turn point with the default lane), target 40: leg 1 skipped, one facing leg. */
+    @Test
+    public void heldAtTheTurnPointGoesOnWithOneFacingLeg() {
+        for (Alliance alliance : Alliance.values()) {
+            Pose at35 = target(alliance, 35);
+            Pose at40 = target(alliance, 40);
+            assertTrue(length(at35, ShotTunerLane.turnPoint(alliance)) < ShotTunerRoute.MIN_LEG_IN);
+            ShotTunerRoute.Plan plan = plan(alliance, at35, spot(alliance, 35), spot(alliance, 40), false);
+            assertOneLeg(plan, VIA, true, at35, at40);
+            assertEquals(length(at35, at40), plan.lengthIn, EPS);
+            assertEquals(Math.sqrt(40 * 40 - 35 * 35), plan.lengthIn, 1e-6);
+        }
+    }
+
+    /** First move from the turn point facing +x (blue) to the 35 in spot: both legs skipped, one in-place leg. */
+    @Test
+    public void theFirstMoveFromTheTurnPointTurnsInPlace() {
+        Pose blueTurn = ShotTunerLane.turnPoint(Alliance.BLUE);
+        for (Alliance alliance : Alliance.values()) {
+            Pose start = pose(alliance, blueTurn.x(), blueTurn.y(), 0);
+            Pose target = target(alliance, 35);
+            ShotTunerRoute.Plan plan = plan(alliance, start, null, spot(alliance, 35), true);
+            assertOneLeg(plan, VIA, false, start, target);
+            assertTrue(plan.legs.get(0).inPlace());
+        }
+    }
+
+    /**
+     * TURN_IN = 50: the turn point (84.2, 136) still keeps the full margins facing cell A, and a start there facing
+     * +x is 0.06 in past the north wall (inside START_PAST_WALL_MAX_IN). Turning in place to the 50 in spot swings
+     * a corner farther past the north wall: blocked.
+     */
+    @Test
+    public void aRule5TurnInPlaceIntoAWallIsBlocked() {
+        ShotTunerLane.TURN_IN = 50;
+        Pose blueTurn = ShotTunerLane.turnPoint(Alliance.BLUE);
+        for (Alliance alliance : Alliance.values()) {
+            Pose start = pose(alliance, blueTurn.x(), blueTurn.y(), 0);
+            assertTrue(ShotTunerLane.poseClear(turnFacing(alliance)));
+            assertTrue(spot(alliance, 50).valid);
+            assertFalse(ShotTunerLane.pastWall(start));
+            ShotTunerRoute.Plan plan = plan(alliance, start, null, spot(alliance, 50), true);
+            assertTrue(alliance.toString(), plan.blocked);
+            assertEquals("turn in place hits a wall", plan.reason);
+        }
+    }
+
+    /**
+     * FRAME_MARGIN_IN = 13: facing cell A at the turn point the footprint's south edge (y 111.3 blue) keeps the
+     * margin above the frame (96.7 + 13), but halfway through the turn in place from +x the front corner reaches
+     * y 108.4, inside it: blocked by the hive.
+     */
+    @Test
+    public void aRule5TurnInPlaceIntoTheHiveIsBlocked() {
+        ShotTunerLane.FRAME_MARGIN_IN = 13;
+        Pose blueTurn = ShotTunerLane.turnPoint(Alliance.BLUE);
+        for (Alliance alliance : Alliance.values()) {
+            Pose start = pose(alliance, blueTurn.x(), blueTurn.y(), 0);
+            Pose target = target(alliance, 35);
+            assertTrue(ShotTunerLane.poseClear(turnFacing(alliance)));
+            assertTrue(spot(alliance, 35).valid);
+            assertEquals("hive frame", ShotTunerLane.linearLegBlock(start, target, start));
+            ShotTunerRoute.Plan plan = plan(alliance, start, null, spot(alliance, 35), true);
+            assertTrue(alliance.toString(), plan.blocked);
+            assertEquals("turn in place hits the hive", plan.reason);
         }
     }
 
