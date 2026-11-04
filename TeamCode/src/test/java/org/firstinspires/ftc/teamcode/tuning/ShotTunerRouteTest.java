@@ -104,7 +104,8 @@ public class ShotTunerRouteTest {
 
     /**
      * The planner's check for a leg: facing legs facingLegClear; linear (and in-place) legs linearLegClear, plus,
-     * when they turn MIN_TURN_DEG or more, the turn swept at the end position (endTurnClear).
+     * when they turn MIN_TURN_DEG or more, the turn swept at the end position (endTurnClear); in-place legs also the
+     * turn swept at the start position (startTurnClear).
      */
     private static boolean legClear(ShotTunerRoute.Leg leg, Pose cell, Pose start) {
         if (leg.facingCell) {
@@ -112,12 +113,35 @@ public class ShotTunerRouteTest {
         }
         return ShotTunerLane.linearLegClear(leg.from, leg.to, start)
                 && (Math.abs(MathUtil.wrapRadians(leg.to.heading() - leg.from.heading()))
-                < Math.toRadians(ShotTunerRoute.MIN_TURN_DEG) || endTurnClear(leg.from, leg.to, start));
+                < Math.toRadians(ShotTunerRoute.MIN_TURN_DEG) || endTurnClear(leg.from, leg.to, start))
+                && (!leg.inPlace() || startTurnClear(leg.from, leg.to, start));
     }
 
     /** The whole turn from from's heading to to's, made at to's position (the heading PID finishing late). */
     private static boolean endTurnClear(Pose from, Pose to, Pose start) {
         return ShotTunerLane.linearLegClear(new Pose(to.x(), to.y(), from.heading()), to, start);
+    }
+
+    /** The whole turn from from's heading to to's, made at from's position (Pedro's hold turning first). */
+    private static boolean startTurnClear(Pose from, Pose to, Pose start) {
+        return ShotTunerLane.linearLegClear(from, new Pose(from.x(), from.y(), to.heading()), start);
+    }
+
+    /**
+     * Distance from a pose to the target's lane leg, as the planner measures it for rule 4: back leg = the segment
+     * cell A -> turn point; side leg = the half-line from the turn point through the target.
+     */
+    private static double laneDistance(Alliance alliance, Pose pose, ShotTunerLane.Spot target) {
+        Pose cell = ShotTunerLane.cellA(alliance);
+        Pose turn = ShotTunerLane.turnPoint(alliance);
+        boolean sideLeg = target.nominalIn > length(cell, turn) + 1e-6;
+        double ax = sideLeg ? turn.x() : cell.x();
+        double ay = sideLeg ? turn.y() : cell.y();
+        double dx = (sideLeg ? target.x : turn.x()) - ax;
+        double dy = (sideLeg ? target.y : turn.y()) - ay;
+        double t = ((pose.x() - ax) * dx + (pose.y() - ay) * dy) / (dx * dx + dy * dy);
+        t = sideLeg ? Math.max(0, t) : MathUtil.clamp(t, 0, 1);
+        return Math.hypot(pose.x() - (ax + t * dx), pose.y() - (ay + t * dy));
     }
 
     /**
@@ -293,16 +317,43 @@ public class ShotTunerRouteTest {
     @Test
     public void aNudgeWhoseDirectLegIsBlockedFallsBackToTheTurnPoint() {
         for (Alliance alliance : Alliance.values()) {
-            // 11.2 in off the back leg: the direct leg's turn sweeps the footprint into the frame margin.
+            // 11.2 in off the back leg (inside LANE_TOLERANCE_IN, so rule 4 is entered): the direct leg's turn sweeps
+            // the footprint into the frame margin. The route via the turn point passes with only about 0.2 in of
+            // frame slack: this case relies on the FRAME_* values setUp() sets (today's Field values).
             Pose start = pose(alliance, 73, 107, 180);
             Pose target = target(alliance, 30);
+            assertTrue(laneDistance(alliance, start, spot(alliance, 30)) <= ShotTunerRoute.LANE_TOLERANCE_IN);
             assertFalse(ShotTunerLane.linearLegClear(start, target, start));
             assertViaTurnPoint(alliance, plan(alliance, start, null, spot(alliance, 30), false), start, target);
-            // 11 in off the side leg: the direct leg's turn sweeps a corner into the west wall.
+            // 11 in off the side leg (inside LANE_TOLERANCE_IN): the direct leg's turn sweeps a corner into the west
+            // wall.
             start = pose(alliance, 9, 110, -90);
             target = target(alliance, 80);
+            assertTrue(laneDistance(alliance, start, spot(alliance, 80)) <= ShotTunerRoute.LANE_TOLERANCE_IN);
             assertFalse(ShotTunerLane.linearLegClear(start, target, start));
             assertViaTurnPoint(alliance, plan(alliance, start, null, spot(alliance, 80), false), start, target);
+        }
+    }
+
+    /**
+     * LANE_TOLERANCE_IN pinned from both sides: west of the back leg with the 30 in spot's heading, the straight leg
+     * to the 30 in spot is clear either way. 11.5 in off the leg: direct. 12.5 in off: via the turn point.
+     */
+    @Test
+    public void justBeyondTheLaneToleranceGoesViaTheTurnPoint() {
+        ShotTunerLane.Spot blue = spot(Alliance.BLUE, 30);
+        for (Alliance alliance : Alliance.values()) {
+            Pose target = target(alliance, 30);
+            Pose near = pose(alliance, blue.x - 11.5, blue.y, -90);
+            Pose beyond = pose(alliance, blue.x - 12.5, blue.y, -90);
+            assertEquals(11.5, laneDistance(alliance, near, spot(alliance, 30)), 1e-6);
+            assertEquals(12.5, laneDistance(alliance, beyond, spot(alliance, 30)), 1e-6);
+            for (Pose start : new Pose[] {near, beyond}) {
+                assertTrue(ShotTunerLane.linearLegClear(start, target, start));
+                assertTrue(endTurnClear(start, target, start));
+            }
+            assertOneLeg(plan(alliance, near, null, spot(alliance, 30), false), "direct", false, near, target);
+            assertViaTurnPoint(alliance, plan(alliance, beyond, null, spot(alliance, 30), false), beyond, target);
         }
     }
 
@@ -378,6 +429,55 @@ public class ShotTunerRouteTest {
                 assertTrue(name, ShotTunerLane.linearLegClear(start, target, start));
                 assertFalse(name, endTurnClear(start, target, start));
                 assertViaTurnPoint(alliance, plan(alliance, start, null, spot(alliance, 80), false), start, target);
+            }
+        }
+    }
+
+    /**
+     * Safety finding I1 (BF1): Pedro's hold converges translation and heading independently, so an in-place leg can
+     * make its whole turn at the start position. 0.9 in west and 0.3 in south of the 80 in spot (closer to the west
+     * wall), facing -100 deg: the diagonal and the turn at the 80 in spot pass, but the turn back to about -26 deg made
+     * at the start position swings a corner closer to the west wall than the start pose was. Not an in-place leg,
+     * whether rule 4 (after a nudge) or rule 3 (held at the spot) tried it.
+     */
+    @Test
+    public void anInPlaceTurnThatHitsAWallAtTheStartPositionIsNotTurnedInPlace() {
+        ShotTunerLane.Spot blue = spot(Alliance.BLUE, 80);
+        for (Alliance alliance : Alliance.values()) {
+            Pose target = target(alliance, 80);
+            Pose start = pose(alliance, blue.x - 0.9, blue.y - 0.3, -100);
+            assertTrue(length(start, target) < ShotTunerRoute.MIN_LEG_IN);
+            assertTrue(ShotTunerLane.linearLegClear(start, target, start));
+            assertTrue(endTurnClear(start, target, start));
+            assertEquals("wall", ShotTunerLane.linearLegBlock(start,
+                    new Pose(start.x(), start.y(), target.heading()), start));
+            for (ShotTunerLane.Spot held : new ShotTunerLane.Spot[] {null, spot(alliance, 80)}) {
+                ShotTunerRoute.Plan plan = plan(alliance, start, held, spot(alliance, 80), false);
+                assertViaTurnPoint(alliance, plan, start, target);
+            }
+        }
+    }
+
+    /**
+     * Safety finding r1 M1 (BF1): an in-place leg whose start and target positions differ, where only the turn made at
+     * the target position fails. 0.3 in east and 0.9 in south of the 80 in spot, facing -135 deg: the diagonal and the
+     * turn at the start position pass, the turn at the 80 in spot (closer to the west wall) does not.
+     */
+    @Test
+    public void anInPlaceTurnThatHitsAWallAtTheTargetPositionIsNotTurnedInPlace() {
+        ShotTunerLane.Spot blue = spot(Alliance.BLUE, 80);
+        for (Alliance alliance : Alliance.values()) {
+            Pose target = target(alliance, 80);
+            Pose start = pose(alliance, blue.x + 0.3, blue.y - 0.9, -135);
+            assertTrue(length(start, target) < ShotTunerRoute.MIN_LEG_IN);
+            assertTrue(length(start, target) > 0.5);
+            assertTrue(ShotTunerLane.linearLegClear(start, target, start));
+            assertTrue(startTurnClear(start, target, start));
+            assertEquals("wall", ShotTunerLane.linearLegBlock(new Pose(target.x(), target.y(), start.heading()),
+                    target, start));
+            for (ShotTunerLane.Spot held : new ShotTunerLane.Spot[] {null, spot(alliance, 80)}) {
+                ShotTunerRoute.Plan plan = plan(alliance, start, held, spot(alliance, 80), false);
+                assertViaTurnPoint(alliance, plan, start, target);
             }
         }
     }
@@ -489,6 +589,15 @@ public class ShotTunerRouteTest {
             ShotTunerLane.Spot invalid = new ShotTunerLane.Spot(20, target.x, target.y, target.heading, false,
                     "hive frame");
             assertEquals("spot not valid", plan(alliance, slot, null, invalid, true).reason);
+            // A spot marked valid but with a pose that is not finite.
+            ShotTunerLane.Spot[] notFinite = {
+                    new ShotTunerLane.Spot(30, Double.NaN, target.y, target.heading, true, ""),
+                    new ShotTunerLane.Spot(30, target.x, Double.POSITIVE_INFINITY, target.heading, true, ""),
+                    new ShotTunerLane.Spot(30, target.x, target.y, Double.NaN, true, ""),
+            };
+            for (ShotTunerLane.Spot spot : notFinite) {
+                assertEquals("spot not valid", plan(alliance, slot, null, spot, true).reason);
+            }
             // Slot 0 is flush on the blue (east for blue) wall: 1 in farther is 1 in past it.
             Pose past = Field.forAlliance(alliance, new Pose(Field.SIZE_IN - Field.ROBOT_SIDE_IN + 1,
                     Field.SIZE_IN - Field.ROBOT_BACK_IN, Math.toRadians(-90)));

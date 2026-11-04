@@ -12,7 +12,8 @@ import java.util.List;
  * Shot Tuner route planner (decision 29): the legs the robot drives by itself to a spot, each checked with the
  * ShotTunerLane clearance checks. Pure: the OpMode turns the legs into Pedro paths and ends with a hold at the
  * target. Rules, first match wins:
- * 1. blocked if a pose is not finite, the spot is not valid, or the start is past a wall (ShotTunerLane.pastWall);
+ * 1. blocked if a pose is not finite, the spot is not valid (or its pose is not finite), or the start is past a wall
+ *    (ShotTunerLane.pastWall);
  * 2. already there: no legs;
  * 3. along the lane: held at a spot on the target's lane leg, one leg to the target;
  * 4. direct: after a nudge or an interrupted move (not the first move), within LANE_TOLERANCE_IN of the target's
@@ -57,7 +58,10 @@ public final class ShotTunerRoute {
 
         /**
          * Translation below MIN_LEG_IN: a turn in place (the only leg of its plan). No path is driven for it; the
-         * final hold at the target covers the small translation and the turn.
+         * final hold at the target covers the small translation and the turn. The hold's translation and heading
+         * controllers converge independently, so the turn can be made anywhere between the two positions: an
+         * in-place leg is checked along the diagonal and with the whole turn swept at both the start and the target
+         * positions.
          */
         public boolean inPlace() {
             return length(from, to) < MIN_LEG_IN;
@@ -105,7 +109,8 @@ public final class ShotTunerRoute {
         if (!finite(start) || !finite(cell) || !finite(turn)) {
             return blocked("pose not finite");
         }
-        if (target == null || !target.valid) {
+        if (target == null || !target.valid || !Double.isFinite(target.x) || !Double.isFinite(target.y)
+                || !Double.isFinite(target.heading)) {
             return blocked("spot not valid");
         }
         if (ShotTunerLane.pastWall(start)) {
@@ -185,12 +190,17 @@ public final class ShotTunerRoute {
     /**
      * ShotTunerLane.linearLegBlock, plus, for a turn of MIN_TURN_DEG or more, the whole turn swept at to's position:
      * Pedro's heading follows the path's closest point, so on a short leg with a big turn the robot stops
-     * translating first and makes the rest of the turn at the end. "" when clear, else the first cause.
+     * translating first and makes the rest of the turn at the end. For an in-place leg (translation below MIN_LEG_IN,
+     * left to Pedro's hold) also the whole turn swept at from's position: the hold can finish the turn before the
+     * translation. "" when clear, else the first cause.
      */
     private static String linearBlock(Pose from, Pose to, Pose start) {
         String block = ShotTunerLane.linearLegBlock(from, to, start);
         if (block.isEmpty() && Math.abs(MathUtil.wrapRadians(to.heading() - from.heading())) >= MIN_TURN_RAD) {
             block = ShotTunerLane.linearLegBlock(new Pose(to.x(), to.y(), from.heading()), to, start);
+        }
+        if (block.isEmpty() && length(from, to) < MIN_LEG_IN) {
+            block = ShotTunerLane.linearLegBlock(from, new Pose(from.x(), from.y(), to.heading()), start);
         }
         return block;
     }
