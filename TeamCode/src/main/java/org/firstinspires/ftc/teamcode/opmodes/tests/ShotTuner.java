@@ -402,7 +402,14 @@ public class ShotTuner extends NextOpMode {
         }
         ShotTunerRoute.Plan plan = ShotTunerRoute.plan(robot.pose(), heldSpot, spot, laneCell, laneTurn, !started);
         boolean wasMoving = moving();
-        stopMove();
+        if (wasMoving) {
+            stopMove();
+        } else {
+            // Nothing to cancel, and the drive limit is left as it is: after STOP_SHORT it stays on (a blocked plan
+            // must not lift it under the stopped hold); in every other stopped state it is already 1.0.
+            move = null;
+            settling = false;
+        }
         if (plan.blocked) {
             // Drive nothing: the driver gets closer to the lane by hand.
             moveProblem = "PATH BLOCKED: " + plan.reason + ". Drive closer to the lane by hand, then press B.";
@@ -552,7 +559,9 @@ public class ShotTuner extends NextOpMode {
 
     /**
      * End of a move that did not arrive (ShotTunerSettle STOP_SHORT): hold where the robot is (nothing to push
-     * toward), no seed, and the drive limit stays (stopMove() lifts it: end(), a stick or the next button). B retries.
+     * toward), no seed, and the drive limit stays on for this hold until arrive() or end() restores 1.0: a button
+     * with a blocked plan leaves it on, a valid next move sets its own, and a stick resets it only on handing the
+     * robot to manual drive, which the limit never caps. B retries.
      */
     private void stopShort() {
         heldSpot = null;
