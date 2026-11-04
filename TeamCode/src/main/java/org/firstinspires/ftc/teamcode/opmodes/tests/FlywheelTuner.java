@@ -21,21 +21,27 @@ import dev.nextftc.robot.triggers.CommandGamepad;
  * Gamepad 1: A = run the power steps, B = abort (power 0). An A held through PLAY does nothing until it is released.
  * Each step runs one power on motor 1, and on motor 2 when the flywheel uses it, waits SETTLE_S, then averages RPM
  * and battery volts for MEASURE_S (applied volts = power * battery). A step that got no samples (a loop stall longer
- * than MEASURE_S) is run again. Then copy the two printed lines into Flywheel.java.
+ * than MEASURE_S) is run again; after MAX_EMPTY_TRIES empty tries in a row the run stops (power 0), as B does. Then
+ * copy the two printed lines into Flywheel.java.
  */
 @Configurable
 @NextTeleop(name = "Flywheel Tuner", group = "test")
 public class FlywheelTuner extends NextOpMode {
 
-    /** Seconds each step waits for the RPM to settle; read once per step. Not finite or not above 0: 2.5. */
+    /** Seconds each step waits for the RPM to settle; read once per step. Not finite or outside (0, 10]: 2.5. */
     public static double SETTLE_S = 2.5;
-    /** Seconds each step averages RPM and volts over; read once per step. Not finite or not above 0: 1.0. */
+    /** Seconds each step averages RPM and volts over; read once per step. Not finite or below 0.1: 1.0. */
     public static double MEASURE_S = 1.0;
 
     /** v1's steps: about 1600-3600 RPM at 12 V with the current KS / KV. */
     private static final double[] POWERS = {0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75};
     private static final double DEFAULT_SETTLE_S = 2.5;
     private static final double DEFAULT_MEASURE_S = 1.0;
+    private static final double MAX_SETTLE_S = 10;
+    private static final double MIN_MEASURE_S = 0.1;
+    /** Measure windows in a row with no samples after which a step stops the run. */
+    private static final int MAX_EMPTY_TRIES = 3;
+    private static final String NO_SAMPLES = "no samples in 3 tries: loop too slow or MEASURE_S too short";
 
     private final Robot robot;
     private final RobotTelemetry tele;
@@ -53,8 +59,10 @@ public class FlywheelTuner extends NextOpMode {
     /** SETTLE_S and MEASURE_S as validated when the current step started. */
     private double stepSettleS = DEFAULT_SETTLE_S;
     private double stepMeasureS = DEFAULT_MEASURE_S;
-    /** The current step is a redo: its last measure window got no samples. */
-    private boolean redoingStep = false;
+    /** Measure windows of the current step in a row that got no samples; above 0 the step is a redo. */
+    private int emptyTries = 0;
+    /** The run stopped itself: every one of MAX_EMPTY_TRIES measure windows of a step got no samples. */
+    private boolean noSamples = false;
     /** An A held through PLAY must be released before A starts the steps (its binding sees a press at PLAY). */
     private boolean waitForARelease = true;
     private double rpmSum = 0;
@@ -104,7 +112,8 @@ public class FlywheelTuner extends NextOpMode {
         done = 0;
         fit = null;
         aborted = false;
-        redoingStep = false;
+        noSamples = false;
+        emptyTries = 0;
         running = true;
         startStep();
     }
@@ -125,18 +134,16 @@ public class FlywheelTuner extends NextOpMode {
         samples = 0;
     }
 
-    /** SETTLE_S, or its default when it is not a finite positive number. */
+    /** SETTLE_S, or its default when it is not in (0, MAX_SETTLE_S] (NaN included). */
     private static double settleS() {
-        return positiveOr(SETTLE_S, DEFAULT_SETTLE_S);
+        double settle = SETTLE_S;
+        return settle > 0 && settle <= MAX_SETTLE_S ? settle : DEFAULT_SETTLE_S;
     }
 
-    /** MEASURE_S, or its default when it is not a finite positive number. */
+    /** MEASURE_S, or its default when it is not finite or below MIN_MEASURE_S (a window shorter than a loop). */
     private static double measureS() {
-        return positiveOr(MEASURE_S, DEFAULT_MEASURE_S);
-    }
-
-    private static double positiveOr(double value, double fallback) {
-        return Double.isFinite(value) && value > 0 ? value : fallback;
+        double measure = MEASURE_S;
+        return Double.isFinite(measure) && measure >= MIN_MEASURE_S ? measure : DEFAULT_MEASURE_S;
     }
 
     private static String timing(double settleS, double measureS) {
@@ -204,14 +211,20 @@ public class FlywheelTuner extends NextOpMode {
             return;
         }
         if (samples == 0) {
-            // A loop stall longer than the measure window: a 0 RPM / 0 V point would wreck the fit. Run it again.
-            redoingStep = true;
+            // A loop stall longer than the measure window: a 0 RPM / 0 V point would wreck the fit. Run it again,
+            // but not forever: a loop that is always slower than the window would spin the wheel with no end.
+            emptyTries++;
+            if (emptyTries >= MAX_EMPTY_TRIES) {
+                running = false;
+                noSamples = true;
+                return;
+            }
             startStep();
             return;
         }
         stepRpm[done] = rpmSum / samples;
         stepVolts[done] = POWERS[done] * batterySum / samples;
-        redoingStep = false;
+        emptyTries = 0;
         done++;
         if (done < POWERS.length) {
             startStep();
@@ -226,10 +239,13 @@ public class FlywheelTuner extends NextOpMode {
             double t = (System.nanoTime() - stepStartNanos) / 1e9;
             return String.format("step %d / %d   power %.2f   %s%s", done + 1, POWERS.length, POWERS[done],
                     t < stepSettleS ? "settling" : "measuring",
-                    redoingStep ? "   (redo: no samples in the last measure window)" : "");
+                    emptyTries > 0 ? "   (redo: no samples in the last measure window)" : "");
         }
         if (fit != null) {
             return "done";
+        }
+        if (noSamples) {
+            return "stopped: " + NO_SAMPLES + " (A = run again)";
         }
         return aborted ? "aborted (A = run again)" : "idle (A = run)";
     }

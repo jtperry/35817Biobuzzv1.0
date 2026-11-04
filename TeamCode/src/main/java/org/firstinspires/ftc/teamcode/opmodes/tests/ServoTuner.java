@@ -155,22 +155,26 @@ public class ServoTuner extends NextOpMode {
     /**
      * Hood clamps every position to [MIN_POSITION, MAX_POSITION], so once both limits are marked MIN is the smaller
      * mark and MAX the larger. A single mark prints under its own name (min/max with the unmarked NaN would hide it).
+     * The marks are compared as printed (4 decimals), so the warnings always agree with the paste lines.
      */
     private void pasteHood() {
-        boolean bothLimits = !Double.isNaN(hoodMin) && !Double.isNaN(hoodMax);
-        double low = bothLimits ? Math.min(hoodMin, hoodMax) : hoodMin;
-        double high = bothLimits ? Math.max(hoodMin, hoodMax) : hoodMax;
-        if (bothLimits && hoodMin > hoodMax) {
+        double min = asPrinted(hoodMin);
+        double max = asPrinted(hoodMax);
+        double stow = asPrinted(hoodStow);
+        boolean bothLimits = !Double.isNaN(min) && !Double.isNaN(max);
+        double low = bothLimits ? Math.min(min, max) : min;
+        double high = bothLimits ? Math.max(min, max) : max;
+        if (bothLimits && min > max) {
             tele.add("hood marks", "marked in reverse order: the lines below are swapped");
-        } else if (bothLimits && hoodMin == hoodMax) {
+        } else if (bothLimits && min == max) {
             tele.add("hood marks", "MIN equals MAX: the hood cannot move");
         }
-        if (bothLimits && !Double.isNaN(hoodStow) && (hoodStow < low || hoodStow > high)) {
+        if (bothLimits && !Double.isNaN(stow) && (stow < low || stow > high)) {
             tele.add("hood marks", "stow is outside the limits: Hood clamps it to the nearer limit");
         }
         paste("Hood.java", "MIN_POSITION", low);
         paste("Hood.java", "MAX_POSITION", high);
-        paste("Hood.java", "STOW_POSITION", hoodStow);
+        paste("Hood.java", "STOW_POSITION", stow);
     }
 
     /** One paste-ready line once a value is marked. Locale.US: Java needs a dot as the decimal point. */
@@ -178,6 +182,14 @@ public class ServoTuner extends NextOpMode {
         if (!Double.isNaN(value)) {
             tele.add(file, String.format(Locale.US, "public static double %s = %.4f;", name, value));
         }
+    }
+
+    /**
+     * The value paste() prints (rounded by the same format), NaN kept: jogs add up with rounding error, so marks that
+     * print the same can differ in the 17th decimal.
+     */
+    private static double asPrinted(double value) {
+        return Double.isNaN(value) ? value : Double.parseDouble(String.format(Locale.US, "%.4f", value));
     }
 
     @Override
