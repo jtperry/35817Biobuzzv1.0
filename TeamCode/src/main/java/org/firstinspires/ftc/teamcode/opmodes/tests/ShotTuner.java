@@ -22,6 +22,7 @@ import org.firstinspires.ftc.teamcode.input.DriverInput;
 import org.firstinspires.ftc.teamcode.pedro.LimitedMecanum;
 import org.firstinspires.ftc.teamcode.shooter.Hood;
 import org.firstinspires.ftc.teamcode.shooter.ShotTable;
+import org.firstinspires.ftc.teamcode.tuning.ButtonArming;
 import org.firstinspires.ftc.teamcode.tuning.ShotTunerLane;
 import org.firstinspires.ftc.teamcode.tuning.ShotTunerLog;
 import org.firstinspires.ftc.teamcode.tuning.ShotTunerRoute;
@@ -59,7 +60,10 @@ import dev.nextftc.robot.triggers.CommandGamepad;
 @NextTeleop(name = "Shot Tuner", group = "test")
 public class ShotTuner extends NextOpMode {
 
-    /** Path speed cap, percent, used as 5-100 (not finite: 40). The hold at a spot runs at full power (recoil). */
+    /**
+     * Path speed cap, percent, used as 5-100 (not finite: 40); also caps the final hold until the robot has settled at
+     * the spot. Once settled, the hold at the spot runs at full power (recoil).
+     */
     public static double DRIVE_PCT = 40;
     /** Applied only when the result is finite. */
     public static double RPM_STEP = 50;
@@ -81,6 +85,12 @@ public class ShotTuner extends NextOpMode {
     private static final double STALL_MOVE_IN = 1.0;
     private static final double STALL_TURN_RAD = Math.toRadians(3);
     private static final long STALL_NANOS = 3_000_000_000L;
+    /** A move ends (arrive()) once the robot is this close to the spot, or SETTLE_NANOS after the final hold began. */
+    private static final double ARRIVED_IN = 1.0;
+    private static final double ARRIVED_RAD = Math.toRadians(2);
+    private static final long SETTLE_NANOS = 2_000_000_000L;
+    /** After the session is done, "coasting down" while the measured rpm is above this. */
+    private static final double STOPPED_RPM = 100;
     private static final double SPOT_RADIUS_IN = 1.5;
     private static final double CURRENT_RADIUS_IN = 3;
     private static final String LANE_COLOR = "#9E9E9E";
@@ -130,19 +140,22 @@ public class ShotTuner extends NextOpMode {
     /** Where rpm and hood were seeded from: "from saved row" or "from table"; "" before the first seed. */
     private String seedSource = "";
 
-    // A button held through PLAY stays unarmed until it is seen released (see start()). True until start() reads the
-    // pads, so the bindings' state recorded at construction is false.
-    private boolean aHeld = true;
-    private boolean bHeld = true;
-    private boolean xHeld = true;
-    private boolean yHeld = true;
-    private boolean rtHeld = true;
-    private boolean lbHeld = true;
-    private boolean rbHeld = true;
-    private boolean upHeld = true;
-    private boolean downHeld = true;
-    private boolean leftHeld = true;
-    private boolean rightHeld = true;
+    // Every button that acts is armed only after it has been seen released after PLAY (ButtonArming). Unarmed until
+    // start() reads the pads, so the bindings' state recorded at construction is false. A, X, Y and B act from the
+    // loop; the others through bindings, which check armed().
+    private final ButtonArming aButton = new ButtonArming(() -> gamepad1.aWasPressed(), () -> gamepad1.a);
+    private final ButtonArming xButton = new ButtonArming(() -> gamepad1.xWasPressed(), () -> gamepad1.x);
+    private final ButtonArming yButton = new ButtonArming(() -> gamepad1.yWasPressed(), () -> gamepad1.y);
+    private final ButtonArming bButton = new ButtonArming(() -> gamepad1.bWasPressed(), () -> gamepad1.b);
+    private final ButtonArming rtButton = new ButtonArming(() -> gamepad1.right_trigger > 0.5);
+    private final ButtonArming lbButton = new ButtonArming(() -> gamepad1.left_bumper);
+    private final ButtonArming rbButton = new ButtonArming(() -> gamepad1.right_bumper);
+    private final ButtonArming upButton = new ButtonArming(() -> gamepad1.dpad_up);
+    private final ButtonArming downButton = new ButtonArming(() -> gamepad1.dpad_down);
+    private final ButtonArming leftButton = new ButtonArming(() -> gamepad1.dpad_left);
+    private final ButtonArming rightButton = new ButtonArming(() -> gamepad1.dpad_right);
+    private final ButtonArming[] bindingButtons = {
+            rtButton, lbButton, rbButton, upButton, downButton, leftButton, rightButton};
     /** RT was released (<= 0.5) since the last move was scheduled. */
     private boolean rtReleasedSinceMove = true;
 
@@ -153,6 +166,8 @@ public class ShotTuner extends NextOpMode {
     /** The target rpm the current volley is measured at. */
     private double volleyRpm = Double.NaN;
     private double volleyMinRpm = Double.NaN;
+    /** When the running move's final hold began (its settle wait). */
+    private long settleStartNanos;
 
     public ShotTuner(Robot robot) {
         super(robot, BulkReadHook.INSTANCE, robot.initCheck());
@@ -172,12 +187,12 @@ public class ShotTuner extends NextOpMode {
         pad = new CommandGamepad(gamepad1);
         // Shoot, intake and eject as in Main TeleOp: RT feeds through the same FeedGate (see rtShoots()).
         pad.rightTrigger().isOver(0.5).and(() -> rtShoots()).whileTrue(ShootCommands.whileHeld(robot));
-        pad.leftBumper().and(() -> !lbHeld).whileTrue(robot.intake.intake());
-        pad.rightBumper().and(() -> !rbHeld).whileTrue(robot.intake.eject());
-        pad.dpadUp().and(() -> !upHeld).onTrue(Commands.instant(() -> stepRpm(RPM_STEP)));
-        pad.dpadDown().and(() -> !downHeld).onTrue(Commands.instant(() -> stepRpm(-RPM_STEP)));
-        pad.dpadRight().and(() -> !rightHeld).onTrue(Commands.instant(() -> stepHood(HOOD_STEP)));
-        pad.dpadLeft().and(() -> !leftHeld).onTrue(Commands.instant(() -> stepHood(-HOOD_STEP)));
+        pad.leftBumper().and(lbButton::armed).whileTrue(robot.intake.intake());
+        pad.rightBumper().and(rbButton::armed).whileTrue(robot.intake.eject());
+        pad.dpadUp().and(upButton::armed).onTrue(Commands.instant(() -> stepRpm(RPM_STEP)));
+        pad.dpadDown().and(downButton::armed).onTrue(Commands.instant(() -> stepRpm(-RPM_STEP)));
+        pad.dpadRight().and(rightButton::armed).onTrue(Commands.instant(() -> stepHood(HOOD_STEP)));
+        pad.dpadLeft().and(leftButton::armed).onTrue(Commands.instant(() -> stepHood(-HOOD_STEP)));
     }
 
     @Override
@@ -257,18 +272,15 @@ public class ShotTuner extends NextOpMode {
         //    triggers at zero (buttons do not count), and each resend latches a fresh press of a held button.
         // 2. NextFTC bindings record their state when they are bound in the constructor and poll first after PLAY, so
         //    a button pressed during INIT and still held reads as a rising edge.
-        // So every button that acts is armed only after it has been seen released after PLAY (periodic()).
-        aHeld = gamepad1.a;
-        bHeld = gamepad1.b;
-        xHeld = gamepad1.x;
-        yHeld = gamepad1.y;
-        rtHeld = gamepad1.right_trigger > 0.5;
-        lbHeld = gamepad1.left_bumper;
-        rbHeld = gamepad1.right_bumper;
-        upHeld = gamepad1.dpad_up;
-        downHeld = gamepad1.dpad_down;
-        leftHeld = gamepad1.dpad_left;
-        rightHeld = gamepad1.dpad_right;
+        // So every button that acts is armed only after it has been seen released after PLAY (ButtonArming, polled
+        // in periodic()).
+        aButton.start();
+        xButton.start();
+        yButton.start();
+        bButton.start();
+        for (ButtonArming button : bindingButtons) {
+            button.start();
+        }
     }
 
     @Override
@@ -282,66 +294,28 @@ public class ShotTuner extends NextOpMode {
         }
         checkProgress();
         // Edge reads here, not bindings: a move is scheduled from the loop, never from inside a running command.
-        // Each edge is read (and so consumed) every loop, and acted on only when its button was armed at the start
-        // of this loop.
-        boolean aPress = gamepad1.aWasPressed();
-        if (aHeld) {
-            aHeld = gamepad1.a;
-            aPress = false;
-        }
-        if (aPress) {
+        // ButtonArming reads (and so consumes) each edge every loop, and acts only when its button was armed at the
+        // start of this loop.
+        if (aButton.poll()) {
             saveOrGo();
         }
-        boolean xPress = gamepad1.xWasPressed();
-        if (xHeld) {
-            xHeld = gamepad1.x;
-            xPress = false;
-        }
-        if (xPress) {
+        if (xButton.poll()) {
             if (session.current() != null) {
                 session.skip();
                 stopFlywheelIfDone();
             }
             driveToCurrent();
         }
-        boolean yPress = gamepad1.yWasPressed();
-        if (yHeld) {
-            yHeld = gamepad1.y;
-            yPress = false;
-        }
-        if (yPress) {
+        if (yButton.poll()) {
             session.back();
             driveToCurrent();
         }
-        boolean bPress = gamepad1.bWasPressed();
-        if (bHeld) {
-            bHeld = gamepad1.b;
-            bPress = false;
-        }
-        if (bPress) {
+        if (bButton.poll()) {
             driveToCurrent();
         }
-        // The bindings' arming flags (their triggers poll after periodic()).
-        if (rtHeld) {
-            rtHeld = gamepad1.right_trigger > 0.5;
-        }
-        if (lbHeld) {
-            lbHeld = gamepad1.left_bumper;
-        }
-        if (rbHeld) {
-            rbHeld = gamepad1.right_bumper;
-        }
-        if (upHeld) {
-            upHeld = gamepad1.dpad_up;
-        }
-        if (downHeld) {
-            downHeld = gamepad1.dpad_down;
-        }
-        if (leftHeld) {
-            leftHeld = gamepad1.dpad_left;
-        }
-        if (rightHeld) {
-            rightHeld = gamepad1.dpad_right;
+        // The bindings' arming (their triggers poll after periodic()).
+        for (ButtonArming button : bindingButtons) {
+            button.poll();
         }
         if (gamepad1.right_trigger <= 0.5) {
             rtReleasedSinceMove = true;
@@ -401,7 +375,7 @@ public class ShotTuner extends NextOpMode {
     /** After a save or a skip: a done session stops the flywheel; Y back then seeds the spot again. */
     private void stopFlywheelIfDone() {
         if (session.current() == null) {
-            rpm = 0;
+            setRpm(0);
             valuesFor = Double.NaN;
         }
     }
@@ -447,7 +421,8 @@ public class ShotTuner extends NextOpMode {
 
     /**
      * The plan as commands: the drive limit, a path per translating leg (an in-place leg is left to the final hold),
-     * the hold at the spot, then arrive().
+     * the hold at the spot, a wait until the robot has settled there (still under the drive limit, and still moving()
+     * for the stick stop and the watchdog), then arrive().
      */
     private Command moveTo(ShotTunerLane.Spot spot, ShotTunerRoute.Plan plan) {
         Follower follower = robot.follower();
@@ -464,7 +439,24 @@ public class ShotTuner extends NextOpMode {
                 drive = drive.then(follow(follower, Paths.line(leg.from, leg.to).linear(leg.from, leg.to)));
             }
         }
-        return drive.then(hold(follower, ShotTunerLane.pose(spot))).then(Commands.instant(() -> arrive(spot)));
+        Pose goal = ShotTunerLane.pose(spot);
+        // Ivy's hold(follower, pose) is instant: without the wait, arrive() would lift the drive limit while the hold
+        // still turns or settles.
+        return drive.then(hold(follower, goal))
+                .then(Commands.waitUntil(() -> settled(goal)).setStart(() -> settleStartNanos = System.nanoTime()))
+                .then(Commands.instant(() -> arrive(spot)));
+    }
+
+    /** At the goal, or SETTLE_NANOS after the final hold began. */
+    private boolean settled(Pose goal) {
+        return atSpot(goal) || System.nanoTime() - settleStartNanos >= SETTLE_NANOS;
+    }
+
+    /** Within ARRIVED_IN and ARRIVED_RAD of the spot's pose. */
+    private boolean atSpot(Pose spot) {
+        Pose now = robot.pose();
+        return Math.hypot(now.x() - spot.x(), now.y() - spot.y()) <= ARRIVED_IN
+                && Math.abs(MathUtil.wrapRadians(now.heading() - spot.heading())) <= ARRIVED_RAD;
     }
 
     /** No-progress watchdog: a running move that neither moves nor turns for STALL_NANOS is stopped. */
@@ -499,12 +491,12 @@ public class ShotTuner extends NextOpMode {
             // A saved spot starts from its saved values, else from the table.
             ShotTunerLog.Row saved = latest.get(spot.nominalIn);
             if (saved != null && Double.isFinite(saved.rpm) && saved.rpm >= 0 && Double.isFinite(saved.hood)) {
-                rpm = saved.rpm;
+                setRpm(saved.rpm);
                 setHood(saved.hood);
                 seedSource = "from saved row";
             } else {
                 double distance = robot.shot().distanceIn;
-                rpm = ShotTable.rpm(distance);
+                setRpm(ShotTable.rpm(distance));
                 setHood(ShotTable.hood(distance));
                 seedSource = "from table";
             }
@@ -534,8 +526,19 @@ public class ShotTuner extends NextOpMode {
     private void stepRpm(double step) {
         double next = rpm + step;
         if (Double.isFinite(next)) {
-            rpm = Math.max(0, next);
+            setRpm(Math.max(0, next));
         }
+    }
+
+    /**
+     * Every target rpm change goes through here: a change restarts the volley minimum, RT held or not, so a saved
+     * min_rpm was always measured at the saved rpm.
+     */
+    private void setRpm(double target) {
+        if (target != rpm) {
+            volleyMinRpm = Double.NaN;
+        }
+        rpm = target;
     }
 
     /** Dpad hood step, applied only when the result is finite (setHood clamps it). */
@@ -569,7 +572,7 @@ public class ShotTuner extends NextOpMode {
      * since the last move started, no move running, and a real shot speed.
      */
     private boolean rtShoots() {
-        return gamepad1.right_trigger > 0.5 && !rtHeld && rtReleasedSinceMove && !moving()
+        return gamepad1.right_trigger > 0.5 && rtButton.armed() && rtReleasedSinceMove && !moving()
                 && Double.isFinite(rpm) && rpm >= minShotRpm();
     }
 
@@ -595,7 +598,7 @@ public class ShotTuner extends NextOpMode {
 
     /**
      * Lowest flywheel RPM while RT shoots: the dip of the last volley. A new volley, or a target change during one,
-     * starts over, so a volley that never reaches its target records NaN.
+     * starts over, so a volley that never reaches its target records NaN (setRpm also clears it on any target change).
      */
     private void trackVolley() {
         if (!rtShoots()) {
@@ -635,15 +638,11 @@ public class ShotTuner extends NextOpMode {
         }
         ShotTunerLane.Spot current = session.current();
         if (current == null && rpm == 0) {
-            tele.line("Session done: the flywheel stopped.");
+            // Measured, either sign (a reversed encoder reads negative): the wheel coasts for a few seconds.
+            tele.line(Math.abs(robot.flywheel.rpm()) > STOPPED_RPM ? "Session done: flywheel coasting down."
+                    : "Session done: flywheel stopped.");
         }
-        boolean tuned = current != null && current.nominalIn == valuesFor;
-        tele.add("drive", !started ? "press A to drive to the spot"
-                : manual ? (tuned ? "manual (A = save here, X / Y / B = back to the lane)"
-                : "manual (A / X / Y / B = back to the lane)")
-                : moving() ? String.format(Locale.US, "driving to %.1f in: %s, %.0f in. Touch a stick = stop the move.",
-                moveNominal, moveSummary, moveLengthIn)
-                : "holding the spot");
+        tele.add("drive", driveLine(current, current != null && current.nominalIn == valuesFor));
         tele.add("drive limit", String.format(Locale.US, "%.0f %%   stick stop above %.2f",
                 driveLimit() * 100, stickCancel()));
         tele.add("rpm", String.format(Locale.US, "target %.0f   now %.0f   last volley min %.0f",
@@ -665,6 +664,30 @@ public class ShotTuner extends NextOpMode {
         addTables();
         drawField(robot.pose());
         tele.endFrame();
+    }
+
+    /** What the drive is doing and what the buttons do now. tuned = rpm and hood were seeded for current. */
+    private String driveLine(ShotTunerLane.Spot current, boolean tuned) {
+        if (!started) {
+            return "A or B = drive to the spot, X = skip it and drive on, Y = back one spot and drive";
+        }
+        if (manual) {
+            return tuned ? "manual (A = save here, X / Y / B = back to the lane)"
+                    : "manual (A / X / Y / B = back to the lane)";
+        }
+        if (moving()) {
+            return String.format(Locale.US, "driving to %.1f in: %s, %.0f in. Touch a stick = stop the move.",
+                    moveNominal, moveSummary, moveLengthIn);
+        }
+        if (heldSpot != null || (current != null && atSpot(ShotTunerLane.pose(current)))) {
+            return "holding the spot";
+        }
+        if (current == null) {
+            return "stopped";
+        }
+        // The watchdog stopped the move, or a move was refused while one ran: the robot holds where it stopped.
+        return tuned ? "stopped short of the spot (A = save here, B = retry)"
+                : "stopped short of the spot (A / B = retry)";
     }
 
     private void addProgress() {
