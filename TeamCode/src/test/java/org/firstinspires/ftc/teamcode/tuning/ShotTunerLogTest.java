@@ -62,6 +62,17 @@ public class ShotTunerLogTest {
     }
 
     @Test
+    public void aRowAppendedToANewFileInAMissingFolderIsReadableRightAway() throws IOException {
+        File nested = new File(tmp.getRoot(), "missing/FIRST/shot-tuner.csv");
+        new ShotTunerLog(nested).append(new ShotTunerLog.Row(30, 30.12, 2900, 0.15, 12.48, 2850, "BLUE"));
+        List<ShotTunerLog.Row> rows = new ShotTunerLog(nested).load();
+        assertEquals(1, rows.size());
+        assertEquals(30.12, rows.get(0).distanceIn, EPS);
+        assertEquals(2900.0, rows.get(0).rpm, EPS);
+        assertEquals("BLUE", rows.get(0).alliance);
+    }
+
+    @Test
     public void appendKeepsEarlierRowsAndWritesTheHeaderOnce() throws IOException {
         new ShotTunerLog(file).append(row(30, 30.1, 2900, 0.15));
         new ShotTunerLog(file).append(row(35, 35.2, 2950, 0.2));

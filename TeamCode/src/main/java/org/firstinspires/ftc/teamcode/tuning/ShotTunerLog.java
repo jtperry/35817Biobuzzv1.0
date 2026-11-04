@@ -2,11 +2,13 @@ package org.firstinspires.ftc.teamcode.tuning;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -17,8 +19,9 @@ import java.util.TreeMap;
 
 /**
  * Shot Tuner saves, one CSV row per save (spec 7.3). The file is only ever appended to, so a battery swap keeps
- * every earlier save; the latest row for a spot wins. Numbers are written with Locale.US so the file reads back
- * the same on a device set to a comma-decimal language.
+ * every earlier save; the latest row for a spot wins. Each append is synced to storage before it returns, so a save
+ * survives a power cut right after it. Numbers are written with Locale.US so the file reads back the same on a device
+ * set to a comma-decimal language.
  */
 public final class ShotTunerLog {
 
@@ -75,7 +78,8 @@ public final class ShotTunerLog {
 
     /**
      * Adds one row at the end. A new file gets its parent folders and the header first; a file whose last line has
-     * no newline (a power cut mid-write) gets one before the row. Never truncates.
+     * no newline (a power cut mid-write) gets one before the row. Never truncates. The row is synced to storage
+     * before this returns; a failed write or sync (SyncFailedException) throws.
      */
     public void append(Row row) throws IOException {
         File parent = file.getParentFile();
@@ -84,7 +88,8 @@ public final class ShotTunerLog {
         }
         boolean isNew = file.length() == 0;
         boolean needsNewline = !isNew && !endsWithNewline();
-        try (Writer writer = new FileWriter(file, true)) {
+        try (FileOutputStream out = new FileOutputStream(file, true);
+             Writer writer = new OutputStreamWriter(out, StandardCharsets.US_ASCII)) {
             if (isNew) {
                 writer.write(HEADER + "\n");
             } else if (needsNewline) {
@@ -92,6 +97,8 @@ public final class ShotTunerLog {
             }
             writer.write(String.format(Locale.US, "%.1f,%.2f,%.1f,%.4f,%.2f,%.1f,%s\n",
                     row.nominalIn, row.distanceIn, row.rpm, row.hood, row.volts, row.minRpm, row.alliance));
+            writer.flush();
+            out.getFD().sync();
         }
     }
 
