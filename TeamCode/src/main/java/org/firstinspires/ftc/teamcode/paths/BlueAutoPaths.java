@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.paths;
 
 import static com.pedropathing.api.Paths.*;
+import com.pedropathing.api.Paths;
 
 import com.pedropathing.api.PoseFactory;
 import com.pedropathing.math.Pose;
@@ -12,63 +13,58 @@ public class BlueAutoPaths {
 
     private final PoseFactory poseFactory = PoseFactory.degrees();
 
-    private final Pose start = poseFactory.of(79.1642, 133.0811, 0);
-    private final Pose path1Start = poseFactory.of(79.1642, 133.0811, 0);
-    private final Pose path1 = poseFactory.of(134.5, 134.4568, 0);
-    private final Pose point2 = poseFactory.of(94.9585, 19.33356404577335, -134.6572);
-    private final Pose point2Control1 = poseFactory.of(118.206, 46.4269, 0);
-    private final Pose point2Segment1Start = poseFactory.of(94.9585, 19.33356404577335, 0);
-    private final Pose point2Segment1End = poseFactory.of(94.9585, 19.33356404577335, 235);
-    private final Pose point3 = poseFactory.of(94.4204, 12.7932, -93.2517);
-    private final Pose point4 = poseFactory.of(94.8887, 23.5465, -92.749);
-    private final Pose point5 = poseFactory.of(118.9252, 93.9917, -91.738);
-    private final Pose point5Control1 = poseFactory.of(117.6429, 48.0847, 0);
-    private final Pose point6 = poseFactory.of(128, 94.1197, 0.6519);
-    private final Pose point7 = poseFactory.of(118.5731, 93.9834, 0.6731);
-    private final Pose point8 = poseFactory.of(94.7675, 22.8091, 60.0839);
-    private final Pose point8Control1 = poseFactory.of(124.677, 74.6391, 0);
-    private final Pose point9 = poseFactory.of(133.3059, 66.7496, 90);
-    private final Pose point9Control1 = poseFactory.of(136.1478, 104.8682, 0);
-    private final Pose point9Segment2Heading = poseFactory.of(133.3059, 66.7496, 90);
-    private final Pose point10 = poseFactory.of(133.2975, 40.2161, 90);
+    private final Pose start = poseFactory.of(110.3, 133.21, 90);
+    private final Pose intakeflower = poseFactory.of(133.445, 133.21, 90);
+    private final Pose intakeflowerControl1 = poseFactory.of(131.5447, 100.3648, 0);
+    private final Pose gardenhiveBshoot = poseFactory.of(94.7215, 22.3935, -133.9836);
+    private final Pose gardenhiveBshootControl1 = poseFactory.of(116.7011, 45.1671, 0);
+    private final Pose gardenhiveBshootSegment1Start = poseFactory.of(94.7215, 22.3935, 90);
+    private final Pose gardenhiveBshootSegment1End = poseFactory.of(94.7215, 22.3935, 160);
+    private final Pose hiveBshootflower1 = poseFactory.of(94.72, 11.48, 270);
+    private final Pose flower1hiveBshootcheck = poseFactory.of(94.72, 22.39, 270);
+    private final Pose hiveBshootcheckflower2prep = poseFactory.of(118.8208, 94.5322, 92.4668);
+    private final Pose hiveBshootcheckflower2prepControl1 = poseFactory.of(121.4084, 34.4681, 0);
+    private final Pose flower2prepflower2 = poseFactory.of(132.52, 94.53, 0);
+    private final Pose flower2hiveAshoot = poseFactory.of(94.4753, 15.3491, 11.6182);
+    private final Pose flower2hiveAshootControl1 = poseFactory.of(101.1296, 102.1329, 0);
+    private final Pose flower2hiveAshootControl2 = poseFactory.of(134.3687, 23.5513, 0);
+    private final Pose hiveAshootparkprep = poseFactory.of(125.8028, 78.6836, -151.6714);
+    private final Pose hiveAshootparkprepControl1 = poseFactory.of(122.3286, 76.8106, 0);
+    private final Pose parkpreppark = poseFactory.of(127.8285, 48.3734, 93.8234);
 
-    public Path garden() {
-        return line(path1Start, path1).linear(path1Start, path1);
+    public Path intakeflower() {
+        return Paths.curve(start, intakeflowerControl1, intakeflower).constant(intakeflower);
     }
 
-    public Path gardenShoot() {
-        return curve(path1, point2Control1, point2).heading(Interpolator.piecewise().until(0.1854, Interpolator.linear(point2Segment1Start, point2Segment1End)).until(1, Interpolator.tangent));
+    public Path gardenhiveBshoot() {
+        return Paths.curve(intakeflower, gardenhiveBshootControl1, gardenhiveBshoot).heading(Interpolator.piecewise().until(0.25, Interpolator.linear(gardenhiveBshootSegment1Start, gardenhiveBshootSegment1End)).until(1, Interpolator.tangent));
     }
 
-    public Path flower1() {
-        return line(point2, point3).tangent();
+    public Path hiveBshootflower1() {
+        return Paths.line(gardenhiveBshoot, hiveBshootflower1).constant(hiveBshootflower1);
     }
 
-    public Path flower1Shoot() {
-        return line(point3, point4).reverseTangent();
+    public Path flower1hiveBshootcheck() {
+        return Paths.line(hiveBshootflower1, flower1hiveBshootcheck).constant(flower1hiveBshootcheck);
     }
 
-    public Path flower2Prep() {
-        return curve(point4, point5Control1, point5).reverseTangent();
+    public Path hiveBshootcheckflower2prep() {
+        return Paths.curve(flower1hiveBshootcheck, hiveBshootcheckflower2prepControl1, hiveBshootcheckflower2prep).tangent();
     }
 
-    public Path flower2() {
-        return line(point5, point6).tangent();
+    public Path flower2prepflower2() {
+        return Paths.line(hiveBshootcheckflower2prep, flower2prepflower2).constant(flower2prepflower2);
     }
 
-    public Path pushPrep() {
-        return line(point6, point7).reverseTangent();
+    public Path flower2hiveAshoot() {
+        return Paths.curve(flower2prepflower2, flower2hiveAshootControl1, flower2hiveAshootControl2, flower2hiveAshoot).reverseTangent();
     }
 
-    public Path flower2Shoot() {
-        return curve(point7, point8Control1, point8).reverseTangent();
+    public Path hiveAshootparkprep() {
+        return Paths.curve(flower2hiveAshoot, hiveAshootparkprepControl1, hiveAshootparkprep).reverseTangent();
     }
 
-    public Path parkPrep() {
-        return curve(point8, point9Control1, point9).constant(point9Segment2Heading);
-    }
-
-    public Path park() {
-        return line(point9, point10).constant(point10);
+    public Path parkpreppark() {
+        return Paths.line(hiveAshootparkprep, parkpreppark).reverseTangent();
     }
 }

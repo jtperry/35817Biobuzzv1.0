@@ -5,29 +5,27 @@ import com.pedropathing.paths.Path;
 import org.firstinspires.ftc.teamcode.paths.BlueAutoPaths;
 import org.firstinspires.ftc.teamcode.paths.RedAutoPaths;
 
-/** Paths MainAuto use. */
+/** Paths MainAuto2Tip uses. */
 public interface AutoRoute {
 
     // One method per path, same name as visualizer.
-    Path garden();
+    Path intakeflower();
 
-    Path gardenShoot();
+    Path gardenhiveBshoot();
 
-    Path flower1();
+    Path hiveBshootflower1();
 
-    Path flower1Shoot();
+    Path flower1hiveBshootcheck();
 
-    Path flower2Prep();
+    Path hiveBshootcheckflower2prep();
 
-    Path flower2();
+    Path flower2prepflower2();
 
-    Path pushPrep();
+    Path flower2hiveAshoot();
 
-    Path flower2Shoot();
+    Path hiveAshootparkprep();
 
-    Path parkPrep();
-
-    Path park();
+    Path parkpreppark();
 
     // Adapters. Inherit export methods. Renamed path = compile error here.
     final class Red extends RedAutoPaths implements AutoRoute {
