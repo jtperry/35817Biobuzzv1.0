@@ -21,6 +21,8 @@ public class FlowerArm implements Mechanism {
     public static final double PWM_MAX_US = 2500;
     /** Below the Servo Tuner's 0.002 fine step, so every jog reaches the servos. */
     private static final double CACHE_TOLERANCE = 0.001;
+    /** atTarget() tolerance: Slew's last step lands on the target only up to rounding. */
+    private static final double AT_TARGET_EPS = 1e-9;
 
     /** Servo directions, read in bindServos(): flip live during bring-up, re-init the OpMode, then copy into code. */
     public static boolean LEFT_REVERSED = false;
@@ -77,16 +79,34 @@ public class FlowerArm implements Mechanism {
             started = true;
             return;
         }
-        double target = deployed ? DEPLOYED_POSITION : STOWED_POSITION;
-        double commanded;
+        writePosition(step(System.nanoTime()), true, true);
+    }
+
+    /**
+     * Walk toward the deploy/stow target and return the position to command now. The first call of an OpMode (and any
+     * call with SPEED_POS_PER_SEC <= 0) jumps straight to the target. Package-private so a JVM test can drive the walk:
+     * periodic() also writes the servos, which needs hardware.
+     */
+    double step(long nowNanos) {
+        double target = target();
         if (!started || SPEED_POS_PER_SEC <= 0) {
             position.reset(target);
             started = true;
-            commanded = target;
-        } else {
-            commanded = position.step(target, SPEED_POS_PER_SEC, System.nanoTime());
+            return target;
         }
-        writePosition(commanded, true, true);
+        return position.step(target, SPEED_POS_PER_SEC, nowNanos);
+    }
+
+    /**
+     * True once the walk has reached the current deploy/stow target, so the arm is where deploy() or stow() sent it.
+     * False in RAW and before the first periodic() of this OpMode. Autos wait on it instead of a fixed time.
+     */
+    public boolean atTarget() {
+        return !rawMode && started && Math.abs(position.value() - target()) <= AT_TARGET_EPS;
+    }
+
+    private double target() {
+        return deployed ? DEPLOYED_POSITION : STOWED_POSITION;
     }
 
     /** Raw position on the chosen servos only; the other is disabled (no PWM) so the two cannot fight. */
