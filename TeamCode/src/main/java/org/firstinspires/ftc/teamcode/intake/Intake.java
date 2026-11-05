@@ -21,6 +21,8 @@ public class Intake implements Mechanism {
     public static final String STAGE1 = "stage1";
     public static final String STAGE2 = "stage2";
     public static final String GATE = "gate";
+    /** Below the Servo Tuner's 0.002 fine step, so every jog reaches the servo. */
+    private static final double GATE_CACHE_TOLERANCE = 0.001;
     /** Motor sign that moves each stage toward the shooter (mounted opposite). Flip live during bring-up. */
     public static double STAGE1_SIGN = -1.0;
     public static double STAGE2_SIGN = 1.0;
@@ -57,7 +59,7 @@ public class Intake implements Mechanism {
 
     /** Fresh servo object each OpMode. */
     public void bindServos() {
-        gate = new NextServo(GATE);
+        gate = new NextServo(GATE, GATE_CACHE_TOLERANCE);
     }
 
     /** Known state: stages off, gate closed. */
@@ -132,10 +134,26 @@ public class Intake implements Mechanism {
         });
     }
 
+    /** Raw gate position every loop, stages off (Servo Tuner). isGateOpen() is not changed. */
+    public Command gateRaw(DoubleSupplier position) {
+        return infinite(() -> {
+            runStages(0, 0);
+            gateOutput.accept(MathUtil.clamp(position.getAsDouble(), 0, 1));
+        });
+    }
+
     // ---------------------------------------------------------------- state
 
     public boolean isGateOpen() {
         return gateOpen;
+    }
+
+    public static double gateOpenPosition() {
+        return GATE_OPEN_POSITION;
+    }
+
+    public static double gateClosedPosition() {
+        return GATE_CLOSED_POSITION;
     }
 
     /** Separate hub read each call: tests only. */

@@ -19,8 +19,29 @@ public class IntakeTest {
     private Intake intake;
     private double gatePosition;
 
+    private double savedGateOpen;
+    private double savedGateClosed;
+    private double savedGateOpenDelay;
+    private double savedStage1Sign;
+    private double savedStage2Sign;
+    private double savedStage1Intake;
+    private double savedStage2Intake;
+    private double savedStage1Feed;
+    private double savedStage2Feed;
+    private double savedEject;
+
     @Before
     public void setUp() {
+        savedGateOpen = Intake.GATE_OPEN_POSITION;
+        savedGateClosed = Intake.GATE_CLOSED_POSITION;
+        savedGateOpenDelay = Intake.GATE_OPEN_DELAY_MS;
+        savedStage1Sign = Intake.STAGE1_SIGN;
+        savedStage2Sign = Intake.STAGE2_SIGN;
+        savedStage1Intake = Intake.STAGE1_INTAKE_POWER;
+        savedStage2Intake = Intake.STAGE2_INTAKE_POWER;
+        savedStage1Feed = Intake.STAGE1_FEED_POWER;
+        savedStage2Feed = Intake.STAGE2_FEED_POWER;
+        savedEject = Intake.EJECT_POWER;
         Intake.GATE_OPEN_POSITION = 0.42;
         Intake.GATE_CLOSED_POSITION = 0.23;
         Intake.GATE_OPEN_DELAY_MS = 100;
@@ -40,6 +61,16 @@ public class IntakeTest {
     @After
     public void tearDown() {
         Scheduler.reset();
+        Intake.GATE_OPEN_POSITION = savedGateOpen;
+        Intake.GATE_CLOSED_POSITION = savedGateClosed;
+        Intake.GATE_OPEN_DELAY_MS = savedGateOpenDelay;
+        Intake.STAGE1_SIGN = savedStage1Sign;
+        Intake.STAGE2_SIGN = savedStage2Sign;
+        Intake.STAGE1_INTAKE_POWER = savedStage1Intake;
+        Intake.STAGE2_INTAKE_POWER = savedStage2Intake;
+        Intake.STAGE1_FEED_POWER = savedStage1Feed;
+        Intake.STAGE2_FEED_POWER = savedStage2Feed;
+        Intake.EJECT_POWER = savedEject;
     }
 
     private void startFeed() {
@@ -116,5 +147,45 @@ public class IntakeTest {
         Scheduler.execute();
         assertFalse(intake.isGateOpen());
         assertEquals(Intake.GATE_CLOSED_POSITION, gatePosition, EPS);
+    }
+
+    @Test
+    public void gateRawWritesTheSuppliedPositionEveryLoop() {
+        double[] position = {0.3};
+        intake.gateRaw(() -> position[0]).schedule();
+        Scheduler.execute();
+        assertEquals(0.3, gatePosition, EPS);
+        assertFalse(intake.isGateOpen());
+        position[0] = 0.35;
+        Scheduler.execute();
+        assertEquals(0.35, gatePosition, EPS);
+        assertFalse(intake.isGateOpen());
+    }
+
+    @Test
+    public void gateRawClampsToTheServoRange() {
+        intake.gateRaw(() -> 1.5).schedule();
+        Scheduler.execute();
+        assertEquals(1.0, gatePosition, EPS);
+        intake.gateRaw(() -> -0.5).schedule();
+        Scheduler.execute();
+        assertEquals(0.0, gatePosition, EPS);
+    }
+
+    @Test
+    public void gateRawReplacesAFeed() {
+        startFeed();
+        intake.gateRaw(() -> 0.3).schedule();
+        Scheduler.execute();
+        assertFalse(intake.isGateOpen());
+        assertEquals(0.3, gatePosition, EPS);
+    }
+
+    @Test
+    public void gatePositionGettersReadTheTunables() {
+        Intake.GATE_OPEN_POSITION = 0.5;
+        Intake.GATE_CLOSED_POSITION = 0.1;
+        assertEquals(0.5, Intake.gateOpenPosition(), EPS);
+        assertEquals(0.1, Intake.gateClosedPosition(), EPS);
     }
 }

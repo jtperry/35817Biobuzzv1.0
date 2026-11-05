@@ -5,6 +5,7 @@ import com.bylazar.configurables.annotations.Configurable;
 import org.firstinspires.ftc.teamcode.util.MathUtil;
 import org.firstinspires.ftc.teamcode.util.Slew;
 
+import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
 
 import dev.nextftc.hardware.actuators.NextServo;
@@ -38,6 +39,9 @@ public class Hood implements Mechanism {
     /** Where the hood probably is: chases the command at SLEW_POS_PER_SEC. */
     private final Slew estimate = new Slew(STOW_POSITION);
 
+    /** Positions go to the servo. A unit test swaps this to run without hardware. */
+    DoubleConsumer output = position -> servo.setPosition(position);
+
     public Hood() {
         bindServos();
     }
@@ -51,7 +55,7 @@ public class Hood implements Mechanism {
     public void reset() {
         mode = Mode.TRACK;
         trim = 0;
-        command(STOW_POSITION);
+        command(MathUtil.clamp(STOW_POSITION, MIN_POSITION, MAX_POSITION));
         estimate.reset(commanded);
     }
 
@@ -62,7 +66,7 @@ public class Hood implements Mechanism {
                 command(MathUtil.clamp(trackingPosition + trim, MIN_POSITION, MAX_POSITION));
                 break;
             case HOLD:
-                command(MathUtil.clamp(holdPosition, 0, 1));
+                command(MathUtil.clamp(holdPosition, MIN_POSITION, MAX_POSITION));
                 break;
             case RAW:
                 command(MathUtil.clamp(rawPosition.getAsDouble(), 0, 1));
@@ -116,6 +120,14 @@ public class Hood implements Mechanism {
         return STOW_POSITION;
     }
 
+    public static double minPosition() {
+        return MIN_POSITION;
+    }
+
+    public static double maxPosition() {
+        return MAX_POSITION;
+    }
+
     public double commanded() {
         return commanded;
     }
@@ -130,6 +142,6 @@ public class Hood implements Mechanism {
 
     private void command(double position) {
         commanded = position;
-        servo.setPosition(position);
+        output.accept(position);
     }
 }

@@ -8,8 +8,14 @@ public final class LinearTable {
     private double[] keys = new double[0];
     private double[] values = new double[0];
 
-    /** Add a point, or replace the value of an equal key. Returns this for chaining. */
+    /**
+     * Add a point, or replace the value of an equal key. Returns this for chaining.
+     * Throws for a NaN or infinite key or value.
+     */
     public LinearTable put(double key, double value) {
+        if (!Double.isFinite(key) || !Double.isFinite(value)) {
+            throw new IllegalArgumentException("LinearTable point must be finite: (" + key + ", " + value + ")");
+        }
         int index = Arrays.binarySearch(keys, key);
         if (index >= 0) {
             values[index] = value;

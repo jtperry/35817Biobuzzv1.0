@@ -135,7 +135,7 @@ public class Flywheel implements Mechanism {
             targetRpm = 0;
             writePowers(raw1, raw2);
         } else {
-            targetRpm = targetFor(mode);
+            targetRpm = finiteOrZero(targetFor(mode));
             double power = controlPower(dt);
             writePowers(power, USE_MOTOR_2 ? power : 0);
         }
@@ -215,6 +215,11 @@ public class Flywheel implements Mechanism {
         return badReads;
     }
 
+    /** Whether motor 2 runs with motor 1 (USE_MOTOR_2). The Flywheel Tuner drives the motors the same way. */
+    public static boolean usesMotor2() {
+        return USE_MOTOR_2;
+    }
+
     /** Separate hub read each call: tests only, never in the match loop. */
     public double motor1Amps() {
         return motor1.getCurrent().into(Units.Amperes);
@@ -237,6 +242,11 @@ public class Flywheel implements Mechanism {
             default:
                 return 0;
         }
+    }
+
+    /** A NaN or infinite target (bad supplier or table value) counts as no target: 0 clears the integral and last error. */
+    private static double finiteOrZero(double rpm) {
+        return Double.isFinite(rpm) ? rpm : 0;
     }
 
     /** Full power far below target; else volts feedforward + PID divided by battery volts. */
