@@ -30,7 +30,29 @@ public final class AutoCommands {
     /** Stuck this long = give up the path, hold where it is, go to the next step. */
     public static double STUCK_MS = 3000;
 
+    /** An in-place turn is done once the heading is this close to its target (degrees). */
+    public static double TURN_DONE_DEG = 3;
+
+    /** Longest in-place turn (ms) before the auto moves on anyway. */
+    public static double TURN_CAP_MS = 1500;
+
     private AutoCommands() {
+    }
+
+    /**
+     * Turn in place to target's heading while holding its position. Done once the heading is within TURN_DONE_DEG, or
+     * after TURN_CAP_MS. For a turn the next path would otherwise make while driving toward a wall.
+     */
+    public static Command turnTo(Robot robot, Pose target) {
+        // A plain instant hold, so the cap bounds the whole turn whatever Ivy's hold command waits for.
+        return Commands.instant(() -> robot.follower().hold(target))
+                .then(Commands.waitUntil(() -> headingWithin(robot.pose().heading(), target.heading(), TURN_DONE_DEG))
+                        .raceWith(Commands.waitMs(TURN_CAP_MS)));
+    }
+
+    /** True if the two headings (radians) are within toleranceDeg of each other, the short way round. NaN = false. */
+    static boolean headingWithin(double headingRad, double targetRad, double toleranceDeg) {
+        return Math.abs(MathUtil.wrapRadians(headingRad - targetRad)) <= Math.toRadians(toleranceDeg);
     }
 
     /** Aim at this cell from now on (after a tip). */

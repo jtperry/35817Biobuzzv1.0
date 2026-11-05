@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.autos;
 
+import static com.pedropathing.ivy.groups.Groups.parallel;
 import static com.pedropathing.ivy.groups.Groups.sequential;
 
 import com.pedropathing.ivy.Command;
@@ -34,7 +35,10 @@ public abstract class MainAuto2Tip extends MainAuto {
                         0.5, 30),
                 AutoCommands.intakeFor(robot, 500),
                 AutoCommands.drive(robot, route.gardenhiveBshoot()),
-                ShootCommands.volley(robot),
+                // Turn to flower 1's heading here, during the volley (the turret keeps aiming), so the short drive
+                // in toward the wall is straight instead of finishing the turn on the way.
+                parallel(ShootCommands.volley(robot),
+                        AutoCommands.turnTo(robot, route.hiveBshootflower1().get(0))),
 
                 // Flower 1 is close: wait until the arm is down before driving in.
                 Commands.instant(robot.flower::deploy),

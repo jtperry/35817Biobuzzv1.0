@@ -116,6 +116,24 @@ public class AutoRouteTest {
         }
     }
 
+    /** MainAuto2Tip turns in place at the B spot (during the volley) to flower 1's heading before driving in. */
+    @Test
+    public void turnAtTheBSpotIsClear() {
+        for (AutoRoute route : routes()) {
+            Pose from = route.gardenhiveBshoot().endPose();
+            Pose to = route.hiveBshootflower1().get(0);
+            double sweep = wrap(to.heading() - from.heading());
+            for (int s = 0; s <= SAMPLES; s++) {
+                double heading = from.heading() + sweep * s / SAMPLES;
+                String what = name(route) + " turn at the B spot, heading " + Math.toDegrees(heading) + " deg";
+                assertTrue(what + ": a footprint corner is past a wall",
+                        Field.insideWalls(to.x(), to.y(), heading, 0));
+                assertTrue(what + ": the footprint overlaps the hive frame",
+                        Field.clearOfFrame(to.x(), to.y(), heading, 0));
+            }
+        }
+    }
+
     @Test
     public void robotStaysInsideTheWallsAndOffTheHiveFrame() {
         for (AutoRoute route : routes()) {
