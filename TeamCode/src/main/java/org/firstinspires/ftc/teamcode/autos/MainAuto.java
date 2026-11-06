@@ -36,6 +36,11 @@ public abstract class MainAuto extends NextOpMode {
     /** Auto routine. */
     protected abstract Command routine();
 
+    /** Routine step named id: the sim sees where body starts and ends (StepMarks). The robot just runs body. */
+    protected Command step(String id, Command body) {
+        return StepMarks.wrap(id, body);
+    }
+
     @Override
     public void start() {
         routine().schedule();

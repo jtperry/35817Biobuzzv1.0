@@ -26,39 +26,43 @@ public abstract class MainAuto2Tip extends MainAuto {
 
     @Override
     protected Command routine() {
+        // Each step has a stable id (StepMarks): the sim's timeline and the Zenith plan use them.
         return sequential(
-                ShootCommands.volley(robot),
+                step("preload-volley", ShootCommands.volley(robot)),
 
                 // First half full power, rest 30%. Stuck on a ball 3 s = move on.
-                AutoCommands.withSpeeds(robot, AutoCommands.driveIntakingUnjam(robot, route.intakeflower()),
+                step("intakeflower", AutoCommands.withSpeeds(robot,
+                        AutoCommands.driveIntakingUnjam(robot, route.intakeflower()),
                         0, 100,
-                        0.5, 30),
-                AutoCommands.intakeFor(robot, 500),
-                AutoCommands.drive(robot, route.gardenhiveBshoot()),
+                        0.5, 30)),
+                step("garden-intake", AutoCommands.intakeFor(robot, 500)),
+                step("gardenhiveBshoot", AutoCommands.drive(robot, route.gardenhiveBshoot())),
                 // Turn to flower 1's heading here, during the volley (the turret keeps aiming), so the short drive
                 // in toward the wall is straight instead of finishing the turn on the way.
-                parallel(ShootCommands.volley(robot),
-                        AutoCommands.turnTo(robot, route.hiveBshootflower1().get(0))),
+                step("volley-B1+turn", parallel(ShootCommands.volley(robot),
+                        AutoCommands.turnTo(robot, route.hiveBshootflower1().get(0)))),
 
                 // Flower 1 is close: wait until the arm is down before driving in.
-                Commands.instant(robot.flower::deploy),
-                Commands.waitUntil(robot.flower::atTarget).raceWith(Commands.waitMs(FLOWER_WAIT_CAP_MS)),
-                AutoCommands.driveIntakingUnjam(robot, route.hiveBshootflower1(), 75),
-                AutoCommands.intakeFor(robot, 1000),
+                step("flower-deploy", sequential(
+                        Commands.instant(robot.flower::deploy),
+                        Commands.waitUntil(robot.flower::atTarget).raceWith(Commands.waitMs(FLOWER_WAIT_CAP_MS)))),
+                step("hiveBshootflower1", AutoCommands.driveIntakingUnjam(robot, route.hiveBshootflower1(), 75)),
+                step("flower1-intake", AutoCommands.intakeFor(robot, 1000)),
 
-                AutoCommands.drive(robot, route.flower1hiveBshootcheck()),
-                ShootCommands.volley(robot),
+                step("flower1hiveBshootcheck", AutoCommands.drive(robot, route.flower1hiveBshootcheck())),
+                step("volley-B2", ShootCommands.volley(robot)),
 
-                AutoCommands.drive(robot, route.hiveBshootcheckflower2prep()),
-                AutoCommands.driveIntakingUnjam(robot, route.flower2prepflower2(), 75),
-                AutoCommands.intakeFor(robot, 1000),
-                Commands.instant(robot.flower::stow),
+                step("hiveBshootcheckflower2prep", AutoCommands.drive(robot, route.hiveBshootcheckflower2prep())),
+                step("flower2prepflower2", AutoCommands.driveIntakingUnjam(robot, route.flower2prepflower2(), 75)),
+                step("flower2-intake", AutoCommands.intakeFor(robot, 1000)),
+                step("flower-stow", Commands.instant(robot.flower::stow)),
 
                 // The export calls this spot hiveAshoot, but it is on B's side: the third volley at B.
-                AutoCommands.drive(robot, route.flower2hiveAshoot()),
-                ShootCommands.volley(robot),
+                step("flower2hiveAshoot", AutoCommands.drive(robot, route.flower2hiveAshoot())),
+                step("volley-B3", ShootCommands.volley(robot)),
 
-                AutoCommands.drive(robot, route.hiveAshootparkprep()),
-                AutoCommands.drive(robot, route.parkpreppark(), 50));
+                step("hiveAshootparkprep", AutoCommands.drive(robot, route.hiveAshootparkprep())),
+                step("parkpreppark", AutoCommands.drive(robot, route.parkpreppark(), 50)),
+                StepMarks.routineEnd());
     }
 }

@@ -99,6 +99,24 @@ public class FakeOctoQuadTest {
     }
 
     @Test
+    public void velocityTurnsWithTheTrueHeadingAsWellAsTheOffset() {
+        // No offset yet: facing true +y, 10 in/s forward is +y and 2 in/s to the left is -x.
+        octoQuad.setTrueState(0, 0, Math.PI / 2, 10, 2, 0);
+        read(octoQuad);
+        assertEquals(-2 * MM_PER_IN, localizer.velX_mmS, 0.5);
+        assertEquals(10 * MM_PER_IN, localizer.velY_mmS, 0.5);
+
+        // Reported frame turned +90 deg, robot turned 0.5 rad in the true frame: forward is reported at both summed.
+        octoQuad.setTrueState(0, 0, 0, 0, 0, 0);
+        octoQuad.setLocalizerPose(0, 0, (float) (Math.PI / 2));
+        octoQuad.setTrueState(0, 0, 0.5, 10, 0, 0);
+        read(octoQuad);
+        double reportedHeading = Math.PI / 2 + 0.5;
+        assertEquals(10 * MM_PER_IN * Math.cos(reportedHeading), localizer.velX_mmS, 0.5);
+        assertEquals(10 * MM_PER_IN * Math.sin(reportedHeading), localizer.velY_mmS, 0.5);
+    }
+
+    @Test
     public void headingIsReportedWithinPlusMinusPi() {
         octoQuad.setTrueState(0, 0, 2 * Math.PI + 0.3, 0, 0, 0);
         read(octoQuad);
