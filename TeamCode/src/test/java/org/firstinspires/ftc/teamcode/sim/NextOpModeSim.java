@@ -1,7 +1,9 @@
 package org.firstinspires.ftc.teamcode.sim;
 
+import com.pedropathing.math.Pose;
 import com.qualcomm.ftccommon.FtcEventLoop;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.OpModeManagerImpl;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
@@ -9,6 +11,7 @@ import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.shooter.Flywheel;
 
 import java.lang.reflect.Field;
+import java.util.function.BiConsumer;
 
 import dev.nextftc.hardware.RobotController;
 import dev.nextftc.robot.opmode.NextOpMode;
@@ -16,12 +19,22 @@ import dev.nextftc.robot.opmode.OpModeHook;
 
 /**
  * Runs a NextOpMode in SimLoop the way NextFTC runs it on the robot. SimLoop needs a LinearOpMode with a no-arg
- * constructor; NextFTC's own BoundNextOpMode takes the OpMode's constructor function, so this copies its runOpMode.
+ * constructor; NextFTC's own BoundNextOpMode takes the OpMode's constructor function, so this copies its runOpMode,
+ * adding one read-only step after each loop pass: reportBelief.
  *
  * <p>This is a team-package class: SimLoop loads it, with our code, Pedro, Ivy and NextFTC, fresh for every run, so
  * every static it sets (RobotController.eventLoop, Flywheel.AT_SPEED_DEBOUNCE_S) is that run's own (Trap 1).
  */
 public abstract class NextOpModeSim extends LinearOpMode {
+
+    /**
+     * Where a sim run listens for what the code believes: a {@code java.util.function.BiConsumer<double[], String>}
+     * in OpMode.blackboard under this key. After every INIT and active loop pass it gets the follower's pose
+     * {x in, y in, heading rad} (Pedro frame) and the name of the cell the robot aims at: JDK types, because Pedro's
+     * Pose and our HiveCell are reloaded per run and would not cast on the test's side. With no sink, it is one
+     * lookup a loop.
+     */
+    public static final String BELIEF_SINK_KEY = "biobuzz.sim.belief";
 
     /** The NextOpMode under test, built on this run's robot (BoundNextOpMode's constructor function). */
     protected abstract NextOpMode create(Robot robot);
@@ -59,6 +72,7 @@ public abstract class NextOpModeSim extends LinearOpMode {
                 for (OpModeHook hook : opMode.getHooks$robot_release()) {
                     hook.afterDisabled();
                 }
+                reportBelief(robot);
             }
             waitForStart();
             for (OpModeHook hook : opMode.getHooks$robot_release()) {
@@ -76,6 +90,7 @@ public abstract class NextOpModeSim extends LinearOpMode {
                 for (OpModeHook hook : opMode.getHooks$robot_release()) {
                     hook.afterPeriodic();
                 }
+                reportBelief(robot);
             }
             for (OpModeHook hook : opMode.getHooks$robot_release()) {
                 hook.beforeEnd();
@@ -99,6 +114,23 @@ public abstract class NextOpModeSim extends LinearOpMode {
             NextOpMode.Companion.setActiveTelemetry$robot_release(null);
             NextOpMode.Companion.setActiveHardwareMap$robot_release(null);
         }
+    }
+
+    /**
+     * Not in BoundNextOpMode: hands the sim's belief sink (BELIEF_SINK_KEY), if there is one, the pose and cell the
+     * code holds after this loop pass. Reads only. In the active loop this follows RobotHook's follower update, so the
+     * pose is this loop's OctoQuad read; in INIT the follower is not updated and holds the start pose.
+     */
+    @SuppressWarnings("unchecked")
+    private static void reportBelief(Robot robot) {
+        Object sink = OpMode.blackboard.get(BELIEF_SINK_KEY);
+        // No follower: INIT failed, and initCheck has already thrown that error.
+        if (!(sink instanceof BiConsumer) || robot.follower() == null) {
+            return;
+        }
+        Pose pose = robot.pose();
+        ((BiConsumer<double[], String>) sink).accept(new double[] {pose.x(), pose.y(), pose.heading()},
+                robot.cell().name());
     }
 
     /**

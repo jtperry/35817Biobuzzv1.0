@@ -13,17 +13,29 @@ import org.firstinspires.ftc.teamcode.field.Alliance;
 import org.firstinspires.ftc.teamcode.field.Field;
 import org.firstinspires.ftc.teamcode.field.HiveCell;
 import org.firstinspires.ftc.teamcode.sim.BlueAuto2TipSim;
+import org.firstinspires.ftc.teamcode.sim.NextOpModeSim;
 import org.firstinspires.ftc.teamcode.sim.RedAuto2TipSim;
 import org.firstinspires.ftc.teamcode.util.MathUtil;
 import org.horizon36596.simloop.opmode.OpModePhase;
 import org.horizon36596.simloop.opmode.OpModeRunResult;
+import org.horizon36596.simloop.opmode.OpModeRunner;
+import org.horizon36596.simloop.sim.RlogDecodedCompare;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.psilynx.psikit.core.wpi.math.Pose2d;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiConsumer;
 
 /**
@@ -31,9 +43,14 @@ import java.util.function.BiConsumer;
  * checked on the plant's true pose. Each alliance runs twice; each run must get from INIT to STOP without an exception
  * (an OpModeException fails the test), mark every routine step in order (StepMarks) and reach routine-end before 30 s
  * of active time, keep every footprint corner inside the walls (0.5 in tolerance) and off the hive frame on every tick,
- * and end within 2 in and 2 deg of the route's park pose; the two runs must end at the same pose. A report (step
- * times, volleys and the cell each aims at, the tip odds for those volleys at hit rates 1.0, 0.9, 0.8 and 0.7
- * (HiveTipModel), park arrival, closest approach to a wall and to the frame) is printed before anything is asserted.
+ * and end within 2 in and 2 deg of the route's park pose. A report (step times, volleys and the cell each aims at, the
+ * tip odds for those volleys at hit rates 1.0, 0.9, 0.8 and 0.7 (HiveTipModel), park arrival, closest approach to a
+ * wall and to the frame) is printed before anything is asserted.
+ *
+ * <p>The first run of each alliance is logged for AdvantageScope (SimLog: TeamCode/build/sim/blue-2-tip.rlog and
+ * red-2-tip.rlog) and the second is not; read back through SimLoop's decoder, the log must hold every key and the
+ * run's start and end poses, and the logged run must end at the same pose as the unlogged one (logging changes
+ * nothing).
  *
  * <p>Only the end pose repeats exactly, not the timeline: Ivy 1.1.1's Race, Parallel and Deadline keep their children
  * in a HashMap keyed by identity hash, so the order they run in within a loop changes from run to run (on the robot
@@ -64,6 +81,16 @@ public class AutoSimTest {
     static final String CAVEAT = "Caveat: no contact model, no flower bases, pickups look cleaner than reality.";
     /** Hit rates per ball the report's tip odds are worked out at (spec). */
     static final double[] HIT_RATES = {1.0, 0.9, 0.8, 0.7};
+    /** The step a run is in before PLAY, and after the routine is done. */
+    static final String BEFORE_START = "before start";
+    static final String AFTER_ROUTINE_END = "after routine-end";
+    /**
+     * How far the code's believed pose may sit from the true one at the end of a run (parked, so the one-tick lag
+     * does not show; the OctoQuad reads to a millimetre): far less than any frame or unit mistake.
+     */
+    static final double BELIEF_IN = 1;
+    static final double BELIEF_DEG = 1;
+    private static final double M_PER_IN = 0.0254;
 
     private double[] savedFrame;
 
@@ -86,27 +113,56 @@ public class AutoSimTest {
     }
 
     @Test
-    public void blue2TipFinishesInTimeOffTheWallsAndTheHiveFrame() {
-        check("Blue 2 Tip", Alliance.BLUE, BlueAuto2TipSim.class, new AutoRoute.Blue());
+    public void blue2TipFinishesInTimeOffTheWallsAndTheHiveFrame() throws IOException {
+        check("Blue 2 Tip", Alliance.BLUE, BlueAuto2TipSim.class, new AutoRoute.Blue(), "blue-2-tip.rlog");
     }
 
     @Test
-    public void red2TipFinishesInTimeOffTheWallsAndTheHiveFrame() {
-        check("Red 2 Tip", Alliance.RED, RedAuto2TipSim.class, new AutoRoute.Red());
+    public void red2TipFinishesInTimeOffTheWallsAndTheHiveFrame() throws IOException {
+        check("Red 2 Tip", Alliance.RED, RedAuto2TipSim.class, new AutoRoute.Red(), "red-2-tip.rlog");
     }
 
-    private static void check(String name, Alliance alliance, Class<? extends OpMode> adapter, AutoRoute route) {
+    private static void check(String name, Alliance alliance, Class<? extends OpMode> adapter, AutoRoute route,
+                              String logName) throws IOException {
         Pose park = route.parkpreppark().endPose();
-        Run first = Run.of(name + ", run 1", alliance, adapter, route);
-        first.printReport(park);
-        Run second = Run.of(name + ", run 2", alliance, adapter, route);
-        second.printSummary();
+        // Relative to the test JVM's working directory, the TeamCode module: TeamCode/build/sim/.
+        Path rlog = Paths.get("build", "sim", logName);
+        Run logged = Run.of(name + ", run 1 (logged)", alliance, adapter, route, rlog);
+        logged.printReport(park);
+        Run plain = Run.of(name + ", run 2 (not logged)", alliance, adapter, route, null);
+        plain.printSummary();
 
-        first.assertChecks(park);
-        second.assertChecks(park);
-        assertEquals(name + ": x differs between two identical runs", first.x, second.x, SAME_POSE);
-        assertEquals(name + ": y differs between two identical runs", first.y, second.y, SAME_POSE);
-        assertEquals(name + ": heading differs between two identical runs", first.heading, second.heading, SAME_POSE);
+        logged.assertChecks(park);
+        plain.assertChecks(park);
+        logged.assertLog(BiobuzzSim.exportStart(route));
+        // Logging must not change the run. The end pose repeats exactly between runs (the timeline need not), so the
+        // logged run must end exactly where the unlogged one does.
+        assertEquals(name + ": x differs between the logged and the unlogged run", logged.x, plain.x, SAME_POSE);
+        assertEquals(name + ": y differs between the logged and the unlogged run", logged.y, plain.y, SAME_POSE);
+        assertEquals(name + ": heading differs between the logged and the unlogged run", logged.heading, plain.heading,
+                SAME_POSE);
+    }
+
+    /** Stands for a blackboard key that had no entry before a run. */
+    private static final Object ABSENT = new Object();
+
+    /** Puts value under key in OpMode.blackboard (null removes the key) and returns what was there, for putBack. */
+    static Object swapIn(String key, Object value) {
+        Object previous = OpMode.blackboard.containsKey(key) ? OpMode.blackboard.get(key) : ABSENT;
+        if (value == null) {
+            OpMode.blackboard.remove(key);
+        } else {
+            OpMode.blackboard.put(key, value);
+        }
+        return previous;
+    }
+
+    static void putBack(String key, Object previous) {
+        if (previous == ABSENT) {
+            OpMode.blackboard.remove(key);
+        } else {
+            OpMode.blackboard.put(key, previous);
+        }
     }
 
     /** The cell a volley aims at by the side rule: blue's A is above y = 72, red's (rotated 180) below. */
@@ -190,6 +246,8 @@ public class AutoSimTest {
 
         final String name;
         final Alliance alliance;
+        /** Where this run is logged for AdvantageScope; null for a run that is not logged. */
+        final Path rlog;
         final BiobuzzSim sim = new BiobuzzSim();
         private final List<Mark> marks = new ArrayList<>();
         private final double[] corners = new double[8];
@@ -200,7 +258,10 @@ public class AutoSimTest {
         private double activeStart = Double.NaN;
         private OpModePhase phase = OpModePhase.INIT;
         /** The step started last (one ends and the next starts in the same loop). */
-        private String step = "before start";
+        private String step = BEFORE_START;
+        /** What the code believed after its latest loop (NextOpModeSim's belief sink; logged runs only), or null. */
+        private double[] believedPose;
+        private String believedCell;
         private Where closestToWall;
         private Where closestToFrame;
         private int ticksPastWall;
@@ -211,37 +272,49 @@ public class AutoSimTest {
         double x;
         double y;
         double heading;
+        /** The flywheel model's speed at the end of the run, RPM. */
+        double flywheelRpm;
 
-        private Run(String name, Alliance alliance) {
+        private Run(String name, Alliance alliance, Path rlog) {
             this.name = name;
             this.alliance = alliance;
+            this.rlog = rlog;
         }
 
         /**
          * Runs the auto once on a fresh world placed at the route's start, with this run as the blackboard's step
-         * sink (the runner keeps the blackboard; the previous value is put back after).
+         * sink (the runner keeps the blackboard; the previous values are put back after). With an rlog path, the run
+         * is logged there for AdvantageScope (OpModeRunner.runLogged), with this run as the belief sink too; without
+         * one it runs unlogged, with no belief sink.
          */
-        static Run of(String name, Alliance alliance, Class<? extends OpMode> adapter, Object export) {
-            final Run run = new Run(name, alliance);
+        static Run of(String name, Alliance alliance, Class<? extends OpMode> adapter, Object export, Path rlog) {
+            final Run run = new Run(name, alliance, rlog);
             run.sim.placeAtStartOf(export);
-            boolean hadSink = OpMode.blackboard.containsKey(StepMarks.SINK_KEY);
-            Object saved = OpMode.blackboard.put(StepMarks.SINK_KEY, run);
+            if (rlog != null) {
+                // A log left by an earlier run would pass every check on it: the end pose repeats exactly.
+                try {
+                    Files.deleteIfExists(rlog);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Cannot delete the old RLOG " + rlog.toAbsolutePath(), e);
+                }
+            }
+            Object savedSteps = swapIn(StepMarks.SINK_KEY, run);
+            BiConsumer<double[], String> beliefSink = run::onBelief;
+            Object savedBelief = swapIn(NextOpModeSim.BELIEF_SINK_KEY, rlog != null ? beliefSink : null);
             long startNanos = System.nanoTime();
             try {
-                run.result = run.sim.runner(adapter, dt -> run.afterStep())
-                        .gamepads((phase, tickInPhase, gamepad1, gamepad2) -> run.onTick(phase, tickInPhase))
-                        .run();
+                OpModeRunner runner = run.sim.runner(adapter, dt -> run.afterStep())
+                        .gamepads((phase, tickInPhase, gamepad1, gamepad2) -> run.onTick(phase, tickInPhase));
+                run.result = rlog != null ? runner.runLogged(BiobuzzSim.ROBOT_CONFIG, rlog) : runner.run();
             } finally {
-                if (hadSink) {
-                    OpMode.blackboard.put(StepMarks.SINK_KEY, saved);
-                } else {
-                    OpMode.blackboard.remove(StepMarks.SINK_KEY);
-                }
+                putBack(StepMarks.SINK_KEY, savedSteps);
+                putBack(NextOpModeSim.BELIEF_SINK_KEY, savedBelief);
             }
             run.wallClockS = (System.nanoTime() - startNanos) / 1e9;
             run.x = run.sim.pedroX();
             run.y = run.sim.pedroY();
             run.heading = run.sim.heading();
+            run.flywheelRpm = run.sim.flywheelRpm();
             return run;
         }
 
@@ -253,18 +326,27 @@ public class AutoSimTest {
             }
         }
 
+        /** What the code believes after a loop pass, from inside the run (NextOpModeSim.reportBelief). */
+        private synchronized void onBelief(double[] pose, String cell) {
+            believedPose = pose.clone();
+            believedCell = cell;
+        }
+
         /** A step mark, from inside the run (StepMarks.mark). */
         @Override
         public synchronized void accept(String id, String event) {
             marks.add(new Mark(activeTime(), id, event, sim.pedroX(), sim.pedroY(), sim.heading()));
             if (StepMarks.ROUTINE_END.equals(id)) {
-                step = "after routine-end";
+                step = AFTER_ROUTINE_END;
             } else if (StepMarks.START.equals(event)) {
                 step = id;
             }
         }
 
-        /** After every tick's world step: the walls and the hive frame, on the true pose. */
+        /**
+         * After every tick's world step: the walls and the hive frame, on the true pose; then the tick goes into the
+         * AdvantageScope log, if this run is logged (SimLog).
+         */
         private synchronized void afterStep() {
             double px = sim.pedroX();
             double py = sim.pedroY();
@@ -300,6 +382,7 @@ public class AutoSimTest {
             if (closestToFrame == null || frame < closestToFrame.clearance) {
                 closestToFrame = new Where(when, step, px, py, ph, frame);
             }
+            SimLog.record(sim, believedPose, believedCell, step);
         }
 
         private double activeTime() {
@@ -370,6 +453,10 @@ public class AutoSimTest {
             System.out.println("  closest to a wall: " + closestToWall);
             System.out.println("  closest to the hive frame (bounding box): " + closestToFrame);
             System.out.println("  last telemetry: " + result.telemetry().lastTransmission());
+            if (rlog != null) {
+                System.out.println("  AdvantageScope log: " + rlog.toAbsolutePath()
+                        + (Files.exists(rlog) ? "" : " (not written)"));
+            }
             System.out.println("  " + CAVEAT);
         }
 
@@ -411,6 +498,73 @@ public class AutoSimTest {
             assertTrue(String.format("%s: ends %.2f deg off the park heading %.1f deg, at %.1f deg",
                     name, offDeg, degrees(park.heading()), degrees(heading)), offDeg <= PARK_DEG);
         }
+
+        /**
+         * The run's AdvantageScope log, read back through SimLoop's decoder (RlogDecodedCompare): there and not empty;
+         * every SimLog key in it; the first frame's true pose at the start (INIT: the robot has not moved) and the last
+         * frame's at the end pose; the believed pose next to the true one at the end; the code's cell on the side
+         * rule's at the start and the end; the flywheel speed and the step the run ended with.
+         */
+        void assertLog(Pose start) throws IOException {
+            String where = rlog.toAbsolutePath().toString();
+            assertTrue(name + ": no RLOG at " + where, Files.exists(rlog));
+            assertTrue(name + ": empty RLOG at " + where, Files.size(rlog) > 0);
+            final Set<String> keys = new TreeSet<>();
+            // The first frame, then the latest.
+            final List<Map<String, String>> ends = new ArrayList<>();
+            RlogDecodedCompare.forEachFrame(rlog, frame -> {
+                keys.addAll(frame.keySet());
+                if (ends.size() == 2) {
+                    ends.set(1, frame);
+                } else {
+                    ends.add(frame);
+                }
+            });
+            for (String key : SimLog.KEYS) {
+                assertTrue(name + ": " + where + " never logs " + key + "; its keys: " + keys,
+                        keys.contains(SimLog.READ_PREFIX + key));
+            }
+            Map<String, String> first = ends.get(0);
+            Map<String, String> last = ends.get(ends.size() - 1);
+
+            assertLoggedPose(name + ": the first frame's true pose (INIT, at the start)",
+                    SimLog.loggedPose(start.x(), start.y(), start.heading()), pose(first, SimLog.TRUE_POSE));
+            Pose2d trueEnd = pose(last, SimLog.TRUE_POSE);
+            assertLoggedPose(name + ": the last frame's true pose (the end pose)", SimLog.loggedPose(x, y, heading),
+                    trueEnd);
+            Pose2d believedEnd = pose(last, SimLog.BELIEVED_POSE);
+            double offIn = Math.hypot(believedEnd.getX() - trueEnd.getX(), believedEnd.getY() - trueEnd.getY())
+                    / M_PER_IN;
+            double offDeg = degreesOff(believedEnd.getRotation().getRadians(), trueEnd.getRotation().getRadians());
+            assertTrue(String.format("%s: the believed pose ends %.2f in and %.2f deg from the true pose (%s vs %s)",
+                    name, offIn, offDeg, believedEnd, trueEnd), offIn <= BELIEF_IN && offDeg <= BELIEF_DEG);
+
+            assertEquals(name + ": the cell the code aims at in the first frame",
+                    cellOnSide(alliance, start.y()).name(), value(first, SimLog.TARGET_CELL));
+            assertEquals(name + ": the cell the code aims at in the last frame",
+                    cellOnSide(alliance, y).name(), value(last, SimLog.TARGET_CELL));
+            assertEquals(name + ": the flywheel speed in the last frame", flywheelRpm,
+                    Double.parseDouble(value(last, SimLog.FLYWHEEL_RPM)), 0);
+            assertEquals(name + ": the step in the last frame", AFTER_ROUTINE_END, value(last, SimLog.STEP));
+        }
+
+        private String value(Map<String, String> frame, String key) {
+            String value = frame.get(SimLog.READ_PREFIX + key);
+            assertNotNull(name + ": no " + key + " in the frame; its keys: " + frame.keySet(), value);
+            return value;
+        }
+
+        private Pose2d pose(Map<String, String> frame, String key) {
+            return SimLog.decodePose(value(frame, key));
+        }
+    }
+
+    /** A logged pose (metres, radians) against the one expected, to SAME_POSE. */
+    static void assertLoggedPose(String what, Pose2d expected, Pose2d actual) {
+        String message = what + ": expected " + expected + ", logged " + actual;
+        assertEquals(message, expected.getX(), actual.getX(), SAME_POSE);
+        assertEquals(message, expected.getY(), actual.getY(), SAME_POSE);
+        assertEquals(message, expected.getRotation().getRadians(), actual.getRotation().getRadians(), SAME_POSE);
     }
 
     /**

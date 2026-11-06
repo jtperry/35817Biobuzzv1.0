@@ -9,6 +9,7 @@ import org.firstinspires.ftc.teamcode.shooter.Flywheel;
 import org.firstinspires.ftc.teamcode.shooter.Hood;
 import org.firstinspires.ftc.teamcode.shooter.Turret;
 import org.horizon36596.simloop.config.DrivetrainSimConfig;
+import org.horizon36596.simloop.config.SimRobotConfig;
 import org.horizon36596.simloop.fakehardware.FakeHardwareMap;
 import org.horizon36596.simloop.fakehardware.FakeMotor;
 import org.horizon36596.simloop.fakehardware.FakeVoltageSensor;
@@ -49,6 +50,12 @@ public final class BiobuzzSim {
     private static final double[] DRIVE_MOUNTING_SIGNS = {-1, 1, -1, 1};
     public static final String OCTOQUAD = "octoquad";
     public static final String VOLTAGE_SENSOR = "Control Hub";
+
+    /**
+     * The robot as a logged run names it: OpModeRunner.runLogged needs a SimRobotConfig, records its simple class
+     * name in the RLOG's metadata ("SimRobotConfig") and reads nothing else from it.
+     */
+    public static final SimRobotConfig ROBOT_CONFIG = new BiobuzzSimConfig();
 
     // ---- drive, PLACEHOLDER
     /** PLACEHOLDER: v1 Pedro maxAchievableForwardVelocity (pedro/Constants.java), in/s at full power. */
@@ -219,6 +226,24 @@ public final class BiobuzzSim {
             }
         }
         throw new IllegalStateException(export.getClass().getName() + " has no 'start' pose");
+    }
+
+    /** Pedro's drive slots, the OctoQuad and the drive plant's numbers (ROBOT_CONFIG). */
+    private static final class BiobuzzSimConfig implements SimRobotConfig {
+        @Override
+        public String[] driveMotorNames() {
+            return DRIVE_MOTORS.clone();
+        }
+
+        @Override
+        public String odometryName() {
+            return OCTOQUAD;
+        }
+
+        @Override
+        public DrivetrainSimConfig drivetrain() {
+            return new DriveConfig();
+        }
     }
 
     /** The drive plant's geometry and limits (PLACEHOLDER numbers above). */
