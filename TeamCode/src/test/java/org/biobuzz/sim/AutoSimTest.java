@@ -32,8 +32,8 @@ import java.util.function.BiConsumer;
  * (an OpModeException fails the test), mark every routine step in order (StepMarks) and reach routine-end before 30 s
  * of active time, keep every footprint corner inside the walls (0.5 in tolerance) and off the hive frame on every tick,
  * and end within 2 in and 2 deg of the route's park pose; the two runs must end at the same pose. A report (step
- * times, volleys and the cell each aims at, park arrival, closest approach to a wall and to the frame) is printed
- * before anything is asserted.
+ * times, volleys and the cell each aims at, the tip odds for those volleys at hit rates 1.0, 0.9, 0.8 and 0.7
+ * (HiveTipModel), park arrival, closest approach to a wall and to the frame) is printed before anything is asserted.
  *
  * <p>Only the end pose repeats exactly, not the timeline: Ivy 1.1.1's Race, Parallel and Deadline keep their children
  * in a HashMap keyed by identity hash, so the order they run in within a loop changes from run to run (on the robot
@@ -62,6 +62,8 @@ public class AutoSimTest {
     static final double PARK_DEG = 2;
     private static final double SAME_POSE = 1e-9;
     static final String CAVEAT = "Caveat: no contact model, no flower bases, pickups look cleaner than reality.";
+    /** Hit rates per ball the report's tip odds are worked out at (spec). */
+    static final double[] HIT_RATES = {1.0, 0.9, 0.8, 0.7};
 
     private double[] savedFrame;
 
@@ -348,10 +350,12 @@ public class AutoSimTest {
                         start != null && stop != null ? time(stop.t - start.t) : "-");
             }
             System.out.printf("  %-28s %7s%n", StepMarks.ROUTINE_END, end != null ? time(end.t) : "-");
-            for (Volley volley : volleys()) {
+            List<Volley> volleys = volleys();
+            for (Volley volley : volleys) {
                 System.out.printf("  volley %s, %s-%s s, plant y %.1f: cell %s%n", volley.id, time(volley.start),
                         time(volley.end), volley.y, volley.cell);
             }
+            printTipOdds(volleys);
             Mark arrived = find(PARK_STEP, StepMarks.END);
             if (arrived != null) {
                 System.out.printf("  park: %s ended at %s s, plant %.2f in and %.1f deg from the park pose"
@@ -407,6 +411,37 @@ public class AutoSimTest {
             assertTrue(String.format("%s: ends %.2f deg off the park heading %.1f deg, at %.1f deg",
                     name, offDeg, degrees(park.heading()), degrees(heading)), offDeg <= PARK_DEG);
         }
+    }
+
+    /**
+     * The tip odds for a run's volleys (HiveTipModel) at each of HIT_RATES: the cells they aimed at by the side rule,
+     * the preloads first, then DEFAULT_PICKUP balls for every later volley. A down-cell volley is a note, not a failure.
+     */
+    static void printTipOdds(List<Volley> volleys) {
+        List<HiveCell> aimed = new ArrayList<>();
+        for (Volley volley : volleys) {
+            aimed.add(volley.cell);
+        }
+        int[] balls = HiveTipModel.ballsPerVolley(aimed.size(), HiveTipModel.DEFAULT_PICKUP);
+        System.out.printf("  tip odds (HiveTipModel, exact): %d preloads, then %d per pickup (a guess); A tips at %d"
+                        + " pollen on its staged nectar, every later cell at %d; the rest of a tipping volley is lost%n",
+                HiveTipModel.PRELOADS, HiveTipModel.DEFAULT_PICKUP, HiveTipModel.FIRST_TIP_POLLEN,
+                HiveTipModel.LATER_TIP_POLLEN);
+        System.out.printf("  %5s  %-16s %4s %5s %11s %11s %7s %12s%n", "hit", "volley", "cell", "balls",
+                "P(A tipped)", "P(B tipped)", "E[tips]", "P(down cell)");
+        for (double p : HIT_RATES) {
+            List<HiveTipModel.VolleyOdds> odds = HiveTipModel.odds(aimed, balls, p);
+            for (int i = 0; i < odds.size(); i++) {
+                HiveTipModel.VolleyOdds volley = odds.get(i);
+                System.out.printf("  %5.2f  %-16s %4s %5d %11.4f %11.4f %7.4f %12.4f%s%n", p, volleys.get(i).id,
+                        volley.aimed, volley.balls, volley.pTipped(HiveCell.A), volley.pTipped(HiveCell.B),
+                        volley.expectedTips, volley.pDownCell, volley.flagged() ? "  G417 note" : "");
+            }
+        }
+        System.out.println("  P(down cell): the chance the volley flies at a down cell, where it scores nothing (a G417"
+                + " note, not a failure).");
+        System.out.println("  Tip odds assume each ball goes in independently (an upper bound when misses come"
+                + " together), a calibrated field and no partner shots.");
     }
 
     static String time(double seconds) {
