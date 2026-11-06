@@ -24,15 +24,38 @@ apply from: '../build.dependencies.gradle'
 
 apply plugin: 'dev.frozenmilk.sinister.sloth.load'
 
+repositories {
+    // SimLoop (laptop sim, test only): JitPack builds the git tag. PsiKit, which SimLoop needs, comes from the
+    // Dairy repository already listed in build.dependencies.gradle.
+    maven { url = 'https://jitpack.io' }
+}
+
 android {
     namespace = 'org.firstinspires.ftc.teamcode'
 
     packagingOptions {
         jniLibs.useLegacyPackaging true
     }
+
+    testOptions {
+        // Android calls return 0/null/false in unit tests instead of throwing "not mocked": NextFTC's LazyHardware
+        // calls android.util.Log.d and the SDK's DcMotorImpl constructor calls RobotLog.v. It also hides any other
+        // Android call a test makes by accident.
+        unitTests.returnDefaultValues = true
+    }
+}
+
+// Unit tests for the debug variant only: testReleaseUnitTest would run the same tests in a second JVM, and two JVMs
+// would write the same build/sim files.
+androidComponents {
+    beforeVariants(selector().withBuildType('release')) { variantBuilder ->
+        variantBuilder.enableUnitTest = false
+    }
 }
 
 dependencies {
     implementation project(':FtcRobotController')
     testImplementation 'junit:junit:4.13.2'
+    // Laptop sim (JUnit 4 is enough; no JUnit Platform). Exact tag: the API changes between alphas.
+    testImplementation 'com.github.Horizon-36596:simloop:v0.2.0-alpha.2'
 }
