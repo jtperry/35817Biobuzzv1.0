@@ -88,9 +88,6 @@ public class Flywheel implements Mechanism {
     public void bindMotors() {
         motor1 = new NextMotor(MOTOR_1, Units.Rotations.of(1.0 / COUNTS_PER_REV), POWER_CACHE_TOLERANCE);
         motor2 = new NextMotor(MOTOR_2, Units.Rotations.of(1.0 / COUNTS_PER_REV), POWER_CACHE_TOLERANCE);
-        // Float: a braked motor at 0 power would drag the flywheel the other motor drives, and off() coasts down.
-        // The SDK already floats every hub motor before each OpMode (LynxDcMotorController.initializeHardware ->
-        // floatHardware), so these two calls are redundant but harmless.
         motor1.setZeroPowerBehavior(NextMotor.ZeroPowerBehavior.FLOAT);
         motor2.setZeroPowerBehavior(NextMotor.ZeroPowerBehavior.FLOAT);
     }
@@ -117,8 +114,6 @@ public class Flywheel implements Mechanism {
         atSpeed = false;
         atSpeedDebouncer.calculate(false);
         writePowers(0, 0);
-        // Send the 0 now, not at the next MotorHook poll: reset() also runs from end(), after the last poll. (The
-        // motors are fresh each OpMode, see bindMotors(), so their write cache never holds an old OpMode's power.)
         motor1.update();
         motor2.update();
     }
@@ -143,7 +138,6 @@ public class Flywheel implements Mechanism {
         atSpeed = atSpeedDebouncer.calculate(targetRpm > 0 && Math.abs(rpm - targetRpm) <= RPM_TOLERANCE);
     }
 
-    // ---------------------------------------------------------------- modes
 
     public void off() {
         mode = Mode.OFF;
@@ -180,7 +174,6 @@ public class Flywheel implements Mechanism {
         trackingRpm = rpmValue;
     }
 
-    // ---------------------------------------------------------------- state
 
     public Mode mode() {
         return mode;
@@ -229,7 +222,6 @@ public class Flywheel implements Mechanism {
         return motor2.getCurrent().into(Units.Amperes);
     }
 
-    // ---------------------------------------------------------------- internals
 
     private double targetFor(Mode current) {
         switch (current) {
@@ -286,7 +278,6 @@ public class Flywheel implements Mechanism {
         int window = (int) MathUtil.clamp(VELOCITY_WINDOW_MS,
                 OctoQuad.MIN_VELOCITY_MEASUREMENT_INTERVAL_MS, OctoQuad.MAX_VELOCITY_MEASUREMENT_INTERVAL_MS);
         if (window != appliedWindowMs || ENCODER_REVERSED != appliedReversed) {
-            // I2C writes: only when a setting changes.
             octoQuad.octoQuad.setSingleEncoderDirection(OCTOQUAD_PORT,
                     ENCODER_REVERSED ? OctoQuad.EncoderDirection.REVERSE : OctoQuad.EncoderDirection.FORWARD);
             octoQuad.octoQuad.setSingleVelocitySampleInterval(OCTOQUAD_PORT, window);

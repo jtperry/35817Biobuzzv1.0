@@ -32,7 +32,6 @@ public class ShotTunerSettleTest {
         for (boolean progressing : new boolean[] {PROGRESSING, STALLED}) {
             for (long nanos : new long[] {0, CAP_NANOS - 1, CAP_NANOS, Long.MAX_VALUE}) {
                 assertEquals(ARRIVE, decide(0, 0, progressing, nanos));
-                // Exactly at the tolerance, either heading sign.
                 assertEquals(ARRIVE, decide(ARRIVED_IN, ARRIVED_RAD, progressing, nanos));
                 assertEquals(ARRIVE, decide(ARRIVED_IN, -ARRIVED_RAD, progressing, nanos));
             }
@@ -44,7 +43,6 @@ public class ShotTunerSettleTest {
         assertEquals(WAIT, decide(Math.nextUp(ARRIVED_IN), 0, PROGRESSING, 0));
         assertEquals(WAIT, decide(0, Math.nextUp(ARRIVED_RAD), PROGRESSING, 0));
         assertEquals(WAIT, decide(0, -Math.nextUp(ARRIVED_RAD), PROGRESSING, 0));
-        // Far off (a long in-place turn): still waiting while it makes progress.
         assertEquals(WAIT, decide(20, Math.PI, PROGRESSING, 0));
     }
 
@@ -74,7 +72,6 @@ public class ShotTunerSettleTest {
         assertEquals(STOP_SHORT, decide(Math.nextUp(NEAR_IN), 0, STALLED, 0));
         assertEquals(STOP_SHORT, decide(0, Math.nextUp(NEAR_RAD), STALLED, 0));
         assertEquals(STOP_SHORT, decide(0, -Math.nextUp(NEAR_RAD), STALLED, 0));
-        // Blocked by a ball 5 in short of the spot.
         assertEquals(STOP_SHORT, decide(5, 0, STALLED, CAP_NANOS - 1));
     }
 

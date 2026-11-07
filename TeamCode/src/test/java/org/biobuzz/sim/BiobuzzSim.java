@@ -57,7 +57,6 @@ public final class BiobuzzSim {
      */
     public static final SimRobotConfig ROBOT_CONFIG = new BiobuzzSimConfig();
 
-    // ---- drive, PLACEHOLDER
     /** PLACEHOLDER: v1 Pedro maxAchievableForwardVelocity (pedro/Constants.java), in/s at full power. */
     static final double MAX_FORWARD_IN_PER_S = 83.99482610982179;
     /** PLACEHOLDER: v1 Pedro maxAchievableStrafeVelocity, in/s. */
@@ -82,7 +81,6 @@ public final class BiobuzzSim {
     static final double DRIVE_TICKS_PER_REV = 384.5;
     static final double TICKS_PER_INCH = DRIVE_TICKS_PER_REV / (Math.PI * WHEEL_DIAMETER_IN);
 
-    // ---- flywheel, PLACEHOLDER
     /** PLACEHOLDER: positive hub power on "flywheel" spins the wheel forward (Flywheel.MOTOR_1_REVERSED = false). */
     static final double FLYWHEEL_MOTOR_SIGN = 1;
     /** PLACEHOLDER: its encoder counts down while the wheel spins forward (what Flywheel.ENCODER_REVERSED = true expects). */
@@ -111,9 +109,7 @@ public final class BiobuzzSim {
         hardwareMap.register(OCTOQUAD, octoQuad);
         hardwareMap.register(VOLTAGE_SENSOR, battery);
         hardwareMap.register(Flywheel.MOTOR_1, flywheel);
-        // Looked up and written 0 even while Flywheel.USE_MOTOR_2 is false; it does not drive the model.
         hardwareMap.register(Flywheel.MOTOR_2, new SimMotor());
-        // Intake stages: write-only (no ball model).
         hardwareMap.register(Intake.STAGE1, new SimMotor());
         hardwareMap.register(Intake.STAGE2, new SimMotor());
         for (String servo : new String[] {Intake.GATE, Hood.SERVO, Turret.LEFT_SERVO, Turret.RIGHT_SERVO,
@@ -128,7 +124,6 @@ public final class BiobuzzSim {
      */
     public void placeAt(double pedroX, double pedroY, double headingRad) {
         drivePlant.setPose(pedroX - PEDRO_OFFSET_IN, pedroY - PEDRO_OFFSET_IN, headingRad);
-        // Seeded here, or the first tick's heading rate would read the placement as a turn.
         lastHeading = headingRad;
         pushPose(0);
     }
@@ -146,12 +141,10 @@ public final class BiobuzzSim {
     public void step(double dt) {
         drivePlant.update(dt);
         double heading = drivePlant.getHeading();
-        // The plant has no turn-rate getter; its heading moves by exactly omega x dt each tick.
         double turnRate = dt > 0 ? (heading - lastHeading) / dt : 0;
         lastHeading = heading;
         pushPose(turnRate);
 
-        // Only "flywheel" drives the wheel: Flywheel.USE_MOTOR_2 is false, so flywheel2 is always sent 0.
         flywheelModel.step(FLYWHEEL_MOTOR_SIGN * flywheel.hubPower(), battery.getVoltage(), dt);
         octoQuad.setEncoderVelocity(Flywheel.OCTOQUAD_PORT,
                 FLYWHEEL_ENCODER_SIGN * flywheelModel.rpm() / 60.0 * Flywheel.COUNTS_PER_REV);
@@ -220,7 +213,6 @@ public final class BiobuzzSim {
                 field.setAccessible(true);
                 return (Pose) field.get(export);
             } catch (NoSuchFieldException e) {
-                // Try the parent.
             } catch (IllegalAccessException e) {
                 throw new IllegalStateException("Cannot read the export's start pose", e);
             }

@@ -31,11 +31,9 @@ public class LimitedMecanum extends Mecanum {
         if (!manual && maxPower < 1.0) {
             DrivePowers brake = overSpeedBrake();
             if (brake != null) {
-                // Pedro float motors on path. Low power alone only coast. Push back.
                 super.drive(new DrivePowers(brake.forward(), brake.strafe(), powers.turn() * maxPower), manual);
                 return;
             }
-            // Biggest wheel power ends at maxPower, same direction mix.
             double biggest = 1.0;
             for (double wheel : computeWheelPowersUnnormalized(powers)) {
                 biggest = Math.max(biggest, Math.abs(wheel));
@@ -62,7 +60,6 @@ public class LimitedMecanum extends Mecanum {
             return null;
         }
         double h = heading.getAsDouble();
-        // Field to robot frame. Strafe + = left.
         double forwardV = v.vx * Math.cos(h) + v.vy * Math.sin(h);
         double strafeV = -v.vx * Math.sin(h) + v.vy * Math.cos(h);
         double power = Math.min(1.0, BRAKE_KP * (speed - limit));

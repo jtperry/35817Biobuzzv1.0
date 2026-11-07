@@ -43,12 +43,10 @@ public class DriveTest extends NextOpMode {
         this.robot = robot;
         tele = new RobotTelemetry(telemetry);
         robot.bindHardware(hardwareMap);
-        // The turret tracks cell A; Robot.cell otherwise carries over from the previous OpMode.
         robot.setCell(HiveCell.A);
         robot.initFollower(hardwareMap, Field.startPose(robot.alliance()));
 
         pad = new CommandGamepad(gamepad1);
-        // Slot 0 is the start pose. The next loop's drive call takes the follower out of the hold this leaves it in.
         pad.y().onTrue(Commands.instant(() -> robot.resetPoseToSlot(0)));
     }
 
@@ -64,7 +62,6 @@ public class DriveTest extends NextOpMode {
 
     @Override
     public void start() {
-        // No motion here: the drive command is first sent from periodic(), from the sticks.
         robot.reset();
     }
 
@@ -77,7 +74,6 @@ public class DriveTest extends NextOpMode {
     private void drive() {
         double scale = MathUtil.clamp(DRIVE_SCALE, 0, 1);
         double stick = DriverInput.stickScale(gamepad1.left_stick_x, gamepad1.left_stick_y) * scale;
-        // Stick y is negative when pushed up. Strafe is positive to the left, turn is counterclockwise positive.
         robot.driveRobotCentric(
                 MathUtil.safePower(-gamepad1.left_stick_y * stick),
                 MathUtil.safePower(-gamepad1.left_stick_x * stick),
@@ -91,7 +87,6 @@ public class DriveTest extends NextOpMode {
         Pose pose = robot.pose();
         Velocity velocity = robot.velocity();
         double heading = pose.heading();
-        // Field velocity turned into the robot frame: rotate by -heading.
         double forward = velocity.vx * Math.cos(heading) + velocity.vy * Math.sin(heading);
         double left = -velocity.vx * Math.sin(heading) + velocity.vy * Math.cos(heading);
         tele.add("pose", String.format(Locale.US, "x %.2f  y %.2f  heading %.1f deg",

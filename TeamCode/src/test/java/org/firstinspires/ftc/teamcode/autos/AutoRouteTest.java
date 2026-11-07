@@ -31,7 +31,6 @@ public class AutoRouteTest {
     @Before
     public void setUp() {
         savedFrame = new double[] {Field.FRAME_MIN_X, Field.FRAME_MAX_X, Field.FRAME_MIN_Y, Field.FRAME_MAX_Y};
-        // Field.java's defaults (approximate, spec 11), as FieldTest and ShotTunerLaneTest set them.
         Field.FRAME_MIN_X = 52.5;
         Field.FRAME_MAX_X = 91.5;
         Field.FRAME_MIN_Y = 47.3;
@@ -81,7 +80,6 @@ public class AutoRouteTest {
                 Pose end = paths.get(i - 1).endPose();
                 Pose start = paths.get(i).get(0);
                 String what = name(route) + " " + NAMES.get(i - 1) + " -> " + NAMES.get(i);
-                // Positions only: some headings jump between paths by design.
                 assertEquals(what + " x", end.x(), start.x(), EPS);
                 assertEquals(what + " y", end.y(), start.y(), EPS);
             }

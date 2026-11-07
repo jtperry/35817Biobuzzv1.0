@@ -101,7 +101,6 @@ public class SharedOctoQuadLocalizer implements Localizer {
 
     @Override
     public void update() {
-        // One read: pose + all 8 encoder ports.
         octoQuad.readLocalizerDataAndAllEncoderData(localizer, encoders);
 
         if (!localizer.isDataValid()) {

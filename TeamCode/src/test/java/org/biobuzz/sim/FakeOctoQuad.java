@@ -28,7 +28,6 @@ public final class FakeOctoQuad extends AbstractFakeDevice implements OctoQuad {
     /** Sample interval of a port nobody set, ms (assumed firmware default; our code sets port 2's own). */
     private static final int DEFAULT_VELOCITY_INTERVAL_MS = 50;
 
-    // The robot's true state, plant frame: mm, rad CCW, robot-frame mm/s (+ left), rad/s.
     private double trueX;
     private double trueY;
     private double trueHeading;
@@ -36,8 +35,6 @@ public final class FakeOctoQuad extends AbstractFakeDevice implements OctoQuad {
     private double trueLeft;
     private double trueTurn;
 
-    // Reported pose = true pose turned by offsetHeading, then moved by (offsetX, offsetY). Identity until the code
-    // resets or sets the pose (a real one reads where it powered up; our code resets in INIT before it reads).
     private double offsetX;
     private double offsetY;
     private double offsetHeading;
@@ -113,7 +110,6 @@ public final class FakeOctoQuad extends AbstractFakeDevice implements OctoQuad {
         offsetY = y - (sin * trueX + cos * trueY);
     }
 
-    // ---- what our code calls (SharedOctoQuadLocalizer, Flywheel), and the plain reads of that state
 
     @Override
     public void setSingleEncoderDirection(int idx, EncoderDirection direction) {
@@ -183,7 +179,6 @@ public final class FakeOctoQuad extends AbstractFakeDevice implements OctoQuad {
         double x = cos * trueX - sin * trueY + offsetX;
         double y = sin * trueX + cos * trueY + offsetY;
         double heading = trueHeading + offsetHeading;
-        // Field frame, in the reported frame: the robot-frame velocity turned by the reported heading.
         double headingCos = Math.cos(heading);
         double headingSin = Math.sin(heading);
         localizerOut.localizerStatus = LocalizerStatus.RUNNING;
@@ -198,7 +193,6 @@ public final class FakeOctoQuad extends AbstractFakeDevice implements OctoQuad {
         for (int i = 0; i < NUM_ENCODERS; i++) {
             double sign = directions[i] == EncoderDirection.REVERSE ? -1 : 1;
             encoderOut.positions[i] = (int) Math.round(sign * rawCounts[i]);
-            // Counts per sample interval, not per second.
             encoderOut.velocities[i] = register(sign * rawCountsPerSecond[i] * intervalsMs[i] / 1000.0,
                     "velocities[" + i + "]");
         }
@@ -212,7 +206,6 @@ public final class FakeOctoQuad extends AbstractFakeDevice implements OctoQuad {
         teleportReport((short) posX_mm, (short) posY_mm, headingSteps * HEADING_SCALE);
     }
 
-    // ---- not simulated
 
     @Override
     public byte getChipId() {

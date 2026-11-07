@@ -8,7 +8,6 @@ import com.pedropathing.math.Pose;
 import com.pedropathing.paths.Path;
 import com.pedropathing.paths.interpolator.Interpolator;
 
-// Visualizer export. Never hand-edit, re-export.
 public class BlueAutoPaths {
 
     private final PoseFactory poseFactory = PoseFactory.degrees();

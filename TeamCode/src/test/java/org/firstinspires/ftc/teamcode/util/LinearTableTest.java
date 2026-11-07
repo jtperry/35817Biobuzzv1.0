@@ -57,7 +57,6 @@ public class LinearTableTest {
 
     @Test
     public void interiorExactKeyReturnsItsOwnValue() {
-        // 250 is off the straight line from (10, 100) to (30, 300), so a blend would give 200.
         LinearTable table = new LinearTable().put(10, 100).put(20, 250).put(30, 300);
         assertEquals(250.0, table.get(20), EPS);
     }
@@ -71,7 +70,6 @@ public class LinearTableTest {
 
     @Test(expected = IllegalStateException.class)
     public void clearedTableThrowsOnGet() {
-        // A variant of emptyTableThrows: a table that had points and was cleared.
         LinearTable table = new LinearTable().put(10, 100);
         table.clear();
         table.get(10);

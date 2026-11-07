@@ -60,7 +60,6 @@ public class ShotTunerSessionTest {
 
     @Test
     public void invalidSpotsAreNeverCurrent() {
-        // NONE is unmodifiable: a session that wrote to the caller's set would throw here.
         ShotTunerSession session = new ShotTunerSession(
                 lane(spot(30, false), spot(35, true), spot(40, false), spot(45, true), spot(50, false)), NONE);
         assertAt(session, 1, 35);

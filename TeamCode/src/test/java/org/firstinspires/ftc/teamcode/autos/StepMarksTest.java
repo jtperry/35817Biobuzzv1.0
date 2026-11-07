@@ -158,7 +158,6 @@ public class StepMarksTest {
         assertSame(ConflictBehavior.QUEUE, step.conflictBehavior());
         assertSame(BlockedBehavior.QUEUE, step.blockedBehavior());
 
-        // So the scheduler treats it as the body: it takes the drivetrain from a default command holding it.
         Object intake = new Object();
         Command idle = Commands.infinite(() -> { }).requiring(intake).setEnd(c -> log.add("idle end " + c));
         schedule(idle);

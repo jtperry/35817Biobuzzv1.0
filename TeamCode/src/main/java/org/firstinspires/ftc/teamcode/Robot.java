@@ -68,14 +68,12 @@ public class Robot implements NextRobot {
     private final OpModeHook initCheck = new OpModeHook() {
         @Override
         public void afterConstruction() {
-            // Read now, not when the hook was built: the hook is a super(...) argument, built before INIT ran.
             if (initError != null) {
                 throw initError;
             }
         }
     };
 
-    // ---------------------------------------------------------------- OpMode setup
 
     /**
      * Fresh motor and servo objects and the battery sensor. Call first in every OpMode constructor. This Robot lives
@@ -84,8 +82,6 @@ public class Robot implements NextRobot {
      */
     public void bindHardware(HardwareMap hardwareMap) {
         initError = null;
-        // NextFTC's MotorHook updates every NextMotor in this static loop each cycle: drop the old OpMode's motors
-        // (they would pile up and keep writing to stale devices), then make fresh ones.
         NextMotor.Companion.getMotorEventLoop().clear();
         flywheel.bindMotors();
         intake.bindMotors();
@@ -110,7 +106,6 @@ public class Robot implements NextRobot {
      * RUNNING) fails here, and the error is kept for initCheck() instead of thrown inside the OpMode constructor.
      */
     public void initFollower(HardwareMap hardwareMap, Pose startPose) {
-        // Only an auto records the pose teleop continues from (beginAuto turns recording back on after this).
         handoff.stopRecording();
         try {
             buildFollower(hardwareMap, startPose);
@@ -136,11 +131,8 @@ public class Robot implements NextRobot {
     public void beginAuto(HardwareMap hardwareMap, Alliance autoAlliance, Pose startPose) {
         alliance = autoAlliance;
         cell = HiveCell.A;
-        // This auto's INIT replaces any older auto's pose: the robot was moved to this start.
         handoff.clear();
         initFollower(hardwareMap, startPose);
-        // If the follower fails, teleop gets no handoff (picker / start pose). If it is fine, this auto's start pose is
-        // pending, even when a later INIT step (resetInInit) fails: that is where the robot was placed.
         if (initError == null) {
             handoff.beginAuto(startPose);
         }
@@ -185,7 +177,6 @@ public class Robot implements NextRobot {
         flower.reset();
     }
 
-    // ---------------------------------------------------------------- loop
 
     @Override
     public void periodic() {
@@ -236,7 +227,6 @@ public class Robot implements NextRobot {
         return turret.settled() && hood.settled();
     }
 
-    // ---------------------------------------------------------------- driving
 
     public Follower follower() {
         return follower;
@@ -255,7 +245,6 @@ public class Robot implements NextRobot {
         follower.manual(new DrivePowers(forward, strafe, turn));
     }
 
-    // ---------------------------------------------------------------- alliance, cell, restart slots
 
     public Alliance alliance() {
         return alliance;

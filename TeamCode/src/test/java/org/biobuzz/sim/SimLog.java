@@ -58,8 +58,6 @@ public final class SimLog {
         if (!Logger.isRunning()) {
             return;
         }
-        // The explicit struct overload: the plain WPISerializable one logs nothing (only an error) if PsiKit cannot
-        // find the struct.
         Logger.recordOutput(TRUE_POSE, Pose2d.struct, loggedPose(sim.pedroX(), sim.pedroY(), sim.heading()));
         if (believed != null) {
             Logger.recordOutput(BELIEVED_POSE, Pose2d.struct, loggedPose(believed[0], believed[1], believed[2]));

@@ -74,7 +74,6 @@ public class FlowerArm implements Mechanism {
         if (rawMode) {
             double raw = MathUtil.clamp(rawPosition.getAsDouble(), 0, 1);
             writePosition(raw, rawLeft, rawRight);
-            // Leaving RAW walks the arm from here instead of jumping.
             position.reset(raw);
             started = true;
             return;

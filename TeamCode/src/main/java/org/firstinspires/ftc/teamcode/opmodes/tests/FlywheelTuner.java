@@ -75,7 +75,6 @@ public class FlywheelTuner extends NextOpMode {
         this.robot = robot;
         tele = new RobotTelemetry(telemetry);
         robot.bindHardware(hardwareMap);
-        // The follower owns the OctoQuad the flywheel RPM is read from.
         robot.initFollower(hardwareMap, Field.startPose(robot.alliance()));
 
         pad = new CommandGamepad(gamepad1);
@@ -99,7 +98,6 @@ public class FlywheelTuner extends NextOpMode {
     public void start() {
         waitForARelease = gamepad1.a;
         robot.reset();
-        // Keep the turret and hood still: Robot would otherwise aim them at the cell every loop.
         robot.turret.hold(0);
         robot.hood.stow();
     }
@@ -165,11 +163,9 @@ public class FlywheelTuner extends NextOpMode {
             return;
         }
         tele.line("A = run the steps, B = abort. No balls in the robot.");
-        // During and after a run: the motors that run used. Before one: what A would use.
         boolean both = (running || done > 0) ? bothMotors : Flywheel.usesMotor2();
         tele.add("motors", both ? "both" : "motor 1 only (set USE_MOTOR_2 first to tune both motors)");
         tele.add("state", state());
-        // While running: this step's latched times. Otherwise: what the next step would use.
         tele.add("each step", running ? timing(stepSettleS, stepMeasureS) : timing(settleS(), measureS()));
         if (waitForARelease) {
             tele.line("Release A, then press it to run (A was held through PLAY).");
@@ -188,7 +184,6 @@ public class FlywheelTuner extends NextOpMode {
             } else if (fit.kvVoltsPerRpm <= 0 || fit.ksVolts < 0) {
                 tele.line("kS or kV is not positive: check ENCODER_REVERSED and the motor directions (RPM must read positive).");
             } else {
-                // Locale.US: these lines are pasted into Java, which needs a dot as the decimal point.
                 tele.add("paste", String.format(Locale.US, "public static double KS_VOLTS = %.4f;", fit.ksVolts));
                 tele.add("paste", String.format(Locale.US, "public static double KV_VOLTS_PER_RPM = %.7f;",
                         fit.kvVoltsPerRpm));
@@ -211,8 +206,6 @@ public class FlywheelTuner extends NextOpMode {
             return;
         }
         if (samples == 0) {
-            // A loop stall longer than the measure window: a 0 RPM / 0 V point would wreck the fit. Run it again,
-            // but not forever: a loop that is always slower than the window would spin the wheel with no end.
             emptyTries++;
             if (emptyTries >= MAX_EMPTY_TRIES) {
                 running = false;

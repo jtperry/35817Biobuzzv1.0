@@ -68,7 +68,6 @@ public final class SimServo extends ServoImplEx implements FakeDevice {
             return new UnsupportedOperationException("SimServo hub: " + method + " is not simulated");
         }
 
-        // ---- what our code reaches, and the plain reads of that state
 
         /** ServoImplEx's constructor sends it; the type changes nothing the sim models. */
         @Override
@@ -117,7 +116,6 @@ public final class SimServo extends ServoImplEx implements FakeDevice {
             return pwmEnabled;
         }
 
-        // ---- HardwareDevice
 
         @Override
         public HardwareDevice.Manufacturer getManufacturer() {
@@ -147,7 +145,6 @@ public final class SimServo extends ServoImplEx implements FakeDevice {
         public void close() {
         }
 
-        // ---- not simulated
 
         @Override
         public void pwmEnable() {

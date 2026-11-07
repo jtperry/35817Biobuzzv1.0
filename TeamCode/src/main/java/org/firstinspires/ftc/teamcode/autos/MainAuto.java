@@ -27,9 +27,7 @@ public abstract class MainAuto extends NextOpMode {
 
         robot.bindHardware(hardwareMap);
         robot.beginAuto(hardwareMap, alliance, startPose);
-        // Not reset(): an error here must wait for robot.initCheck() to reach the Driver Station.
         robot.resetInInit();
-        // Flywheel tracks table speed all auto (spins from start); turret and hood track on their own.
         robot.flywheel.arm();
     }
 
@@ -48,7 +46,6 @@ public abstract class MainAuto extends NextOpMode {
 
     @Override
     public void disabledPeriodic() {
-        // Cell on the robot's side, like teleop. Turret faces it before start.
         robot.pickCellBySide();
         robot.aimInInit();
         pushTelemetry();

@@ -48,7 +48,6 @@ public class FlywheelFitTest {
             volts[i] += noise[i];
         }
         FlywheelFit.Result fit = FlywheelFit.fit(RPM, volts, RPM.length);
-        // Least squares on these six points: kS 1.2433, kV 0.0020867, r squared 0.9991.
         assertEquals(KS, fit.ksVolts, 0.1);
         assertEquals(KV, fit.kvVoltsPerRpm, 2e-5);
         assertTrue(fit.rSquared > 0.99);
@@ -79,7 +78,6 @@ public class FlywheelFitTest {
 
     @Test
     public void oneDistinctRpmGivesNoFit() {
-        // A non-integer RPM repeated: its mean can differ from it by rounding, so only an explicit check catches it.
         double[] rpm = {3123.7, 3123.7, 3123.7};
         double[] volts = {7.0, 7.5, 8.0};
         FlywheelFit.Result fit = FlywheelFit.fit(rpm, volts, 3);
@@ -89,7 +87,6 @@ public class FlywheelFitTest {
 
     @Test
     public void flatVoltsGiveNoRSquared() {
-        // 7.1 is not exact in binary, so the mean of three of them is off by rounding: only an explicit check gives NaN.
         double[] rpm = {2500, 3000, 3500};
         double[] volts = {7.1, 7.1, 7.1};
         FlywheelFit.Result fit = FlywheelFit.fit(rpm, volts, 3);

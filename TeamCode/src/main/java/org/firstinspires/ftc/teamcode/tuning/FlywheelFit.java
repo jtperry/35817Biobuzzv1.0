@@ -39,7 +39,6 @@ public final class FlywheelFit {
         meanRpm /= count;
         meanVolts /= count;
 
-        // Centered sums: RPM is in the thousands, and raw sums of squares would cancel away digits.
         double sxx = 0;
         double sxy = 0;
         for (int i = 0; i < count; i++) {

@@ -83,8 +83,6 @@ public class FlowerArmTest {
             fresh.step(now);
             steps++;
         }
-        // 1.0 -> 0.0 at 0.7 /s in 0.1 s steps: the first step after the jump has no elapsed time,
-        // then 15 steps of 0.07; the 15th lands on the target.
         assertEquals(16, steps);
     }
 

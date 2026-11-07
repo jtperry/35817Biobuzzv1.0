@@ -64,7 +64,6 @@ public class ButtonArmingTest {
         assertFalse(arming.poll());
         button.press();
         assertTrue(arming.poll());
-        // Held: no new edge, no new act.
         assertFalse(arming.poll());
         button.release();
         assertFalse(arming.poll());
@@ -78,7 +77,6 @@ public class ButtonArmingTest {
         button.press();
         ButtonArming arming = button.arming();
         arming.start();
-        // Released and pressed again between two loops, then released: the edge is latched, the field reads up.
         button.press();
         button.release();
         assertFalse(arming.poll());

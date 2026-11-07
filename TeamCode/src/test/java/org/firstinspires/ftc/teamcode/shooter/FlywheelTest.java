@@ -86,7 +86,6 @@ public class FlywheelTest {
 
     @Test
     public void nanTargetClearsIntegralAndLastError() throws Exception {
-        // Error 50 is below BANG_BANG_RPM, so the integral builds; the first periodic() has dt 0, the second about 0.02 s.
         flywheel.periodic();
         Thread.sleep(20);
         flywheel.periodic();

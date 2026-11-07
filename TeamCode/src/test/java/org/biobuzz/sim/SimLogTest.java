@@ -30,15 +30,12 @@ public class SimLogTest {
     @Test
     public void aPedroPoseIsLoggedInThePlantFrameInMetres() {
         assertPose(0, 0, 0, SimLog.loggedPose(72, 72, 0));
-        // Blue 2 Tip's start, (110.30, 133.21, 90 deg): 38.30 in and 61.21 in from the field centre.
         assertPose(38.30 * M_PER_IN, 61.21 * M_PER_IN, Math.PI / 2, SimLog.loggedPose(110.30, 133.21, Math.PI / 2));
-        // Pedro's axes, not rotated: Pedro's (0, 144) corner is at (-72, +72) in.
         assertPose(-72 * M_PER_IN, 72 * M_PER_IN, 0, SimLog.loggedPose(0, 144, 0));
     }
 
     @Test
     public void theHeadingIsWrappedToMinusPiUpToPi() {
-        // The plant's heading is not wrapped (Red ends near 4.78 rad); the follower's is.
         assertEquals(-Math.PI / 2, heading(SimLog.loggedPose(72, 72, 3 * Math.PI / 2)), EXACT);
         assertEquals(-Math.PI, heading(SimLog.loggedPose(72, 72, Math.PI)), EXACT);
         assertEquals(0.5, heading(SimLog.loggedPose(72, 72, 0.5 - 4 * Math.PI)), 1e-9);
@@ -46,7 +43,6 @@ public class SimLogTest {
 
     @Test
     public void aPoseReadsBackAsTheRunLogDecoderRendersIt() {
-        // RlogDecodedCompare renders each value with String.valueOf(LogValue): a Pose2d struct as its raw bytes.
         LogTable table = new LogTable(0);
         table.put("pose", Pose2d.struct, new Pose2d(-1.25, 0.75, new Rotation2d(-2.5)));
         Pose2d decoded = SimLog.decodePose(String.valueOf(table.get("pose")));
@@ -64,14 +60,12 @@ public class SimLogTest {
     public void recordPutsEveryKeyInTheRunLog() throws IOException {
         final BiobuzzSim sim = new BiobuzzSim();
         sim.placeAt(110.30, 133.21, Math.PI / 2);
-        // Full power on the flywheel, so its logged speed is not just 0.
         sim.hardwareMap.get(DcMotorEx.class, Flywheel.MOTOR_1).setPower(1);
         final int[] tick = {0};
         Path rlog = Paths.get("build", "sim", "simlog-test.rlog");
         ScenarioRunner.run("SimLogTest", BiobuzzSim.ROBOT_CONFIG, new FakeTimer(), 3, 0.02, rlog, dt -> {
             sim.step(dt);
             if (tick[0]++ == 0) {
-                // The code has not reported what it believes yet.
                 SimLog.record(sim, null, null, "before start");
             } else {
                 SimLog.record(sim, new double[] {100, 30, 4.0}, "B", "volley-B2");

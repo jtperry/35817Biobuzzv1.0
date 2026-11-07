@@ -97,7 +97,6 @@ public class AutoSimTest {
     @Before
     public void setUp() {
         savedFrame = new double[] {Field.FRAME_MIN_X, Field.FRAME_MAX_X, Field.FRAME_MIN_Y, Field.FRAME_MAX_Y};
-        // Field.java's defaults (approximate, spec 11), as AutoRouteTest and FieldTest set them.
         Field.FRAME_MIN_X = 52.5;
         Field.FRAME_MAX_X = 91.5;
         Field.FRAME_MIN_Y = 47.3;
@@ -125,7 +124,6 @@ public class AutoSimTest {
     private static void check(String name, Alliance alliance, Class<? extends OpMode> adapter, AutoRoute route,
                               String logName) throws IOException {
         Pose park = route.parkpreppark().endPose();
-        // Relative to the test JVM's working directory, the TeamCode module: TeamCode/build/sim/.
         Path rlog = Paths.get("build", "sim", logName);
         Run logged = Run.of(name + ", run 1 (logged)", alliance, adapter, route, rlog);
         logged.printReport(park);
@@ -135,8 +133,6 @@ public class AutoSimTest {
         logged.assertChecks(park);
         plain.assertChecks(park);
         logged.assertLog(BiobuzzSim.exportStart(route));
-        // Logging must not change the run. The end pose repeats exactly between runs (the timeline need not), so the
-        // logged run must end exactly where the unlogged one does.
         assertEquals(name + ": x differs between the logged and the unlogged run", logged.x, plain.x, SAME_POSE);
         assertEquals(name + ": y differs between the logged and the unlogged run", logged.y, plain.y, SAME_POSE);
         assertEquals(name + ": heading differs between the logged and the unlogged run", logged.heading, plain.heading,
@@ -291,7 +287,6 @@ public class AutoSimTest {
             final Run run = new Run(name, alliance, rlog);
             run.sim.placeAtStartOf(export);
             if (rlog != null) {
-                // A log left by an earlier run would pass every check on it: the end pose repeats exactly.
                 try {
                     Files.deleteIfExists(rlog);
                 } catch (IOException e) {
@@ -366,7 +361,6 @@ public class AutoSimTest {
                 minY = Math.min(minY, cy);
                 maxY = Math.max(maxY, cy);
             }
-            // Field.clearOfFrame's test as a distance: the footprint's bounding box gap to the frame box.
             double frame = Math.max(Math.max(Field.FRAME_MIN_X - maxX, minX - Field.FRAME_MAX_X),
                     Math.max(Field.FRAME_MIN_Y - maxY, minY - Field.FRAME_MAX_Y));
             if (!Field.insideWalls(px, py, ph, -WALL_TOLERANCE_IN)) {
@@ -510,7 +504,6 @@ public class AutoSimTest {
             assertTrue(name + ": no RLOG at " + where, Files.exists(rlog));
             assertTrue(name + ": empty RLOG at " + where, Files.size(rlog) > 0);
             final Set<String> keys = new TreeSet<>();
-            // The first frame, then the latest.
             final List<Map<String, String>> ends = new ArrayList<>();
             RlogDecodedCompare.forEachFrame(rlog, frame -> {
                 keys.addAll(frame.keySet());

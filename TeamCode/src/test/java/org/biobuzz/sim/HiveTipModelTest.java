@@ -49,11 +49,9 @@ public class HiveTipModelTest {
     @Test
     public void aTipsOnVolley1WhenAtLeast3Of4PreloadsGoIn() {
         List<HiveTipModel.VolleyOdds> odds = HiveTipModel.odds(ROUTE, 0.9);
-        // 4 x 0.9^3 x 0.1 + 0.9^4.
         assertEquals(0.9477, odds.get(0).pTipped(A), EXACT);
         assertEquals(atLeast(3, 4, 0.9), odds.get(0).pTipped(A), EXACT);
         assertEquals(0.0, odds.get(0).pTipped(B), 0.0);
-        // A gets only the preload volley, so its odds stay put after it.
         for (HiveTipModel.VolleyOdds later : odds) {
             assertEquals("volley " + later.number, 0.9477, later.pTipped(A), EXACT);
         }
@@ -62,11 +60,9 @@ public class HiveTipModelTest {
     @Test
     public void givenATippedOnVolley1BTipsByVolley3OnlyWhenAll8BallsGoIn() {
         List<HiveTipModel.VolleyOdds> odds = HiveTipModel.odds(ROUTE, 0.9);
-        // B is down until A tips, and A can only tip on volley 1, so P(B by 3 | A) = P(B by 3) / P(A on 1).
         double given = odds.get(2).pTipped(B) / odds.get(0).pTipped(A);
         assertEquals(Math.pow(0.9, 8), given, EXACT);
         assertEquals(0.4305, given, FOUR_PLACES);
-        // Volley 2's 4 balls cannot fill an empty cell that tips at 8.
         assertEquals(0.0, odds.get(1).pTipped(B), 0.0);
     }
 
@@ -83,15 +79,12 @@ public class HiveTipModelTest {
         HiveTipModel.VolleyOdds last = HiveTipModel.odds(ROUTE, 0.9).get(3);
         assertEquals(0.9477 * atLeast(8, 12, 0.9), last.pBothTipped(), EXACT);
         assertEquals(0.9477 * 0.9957, last.pBothTipped(), FOUR_PLACES);
-        // One tip for A, one more for B.
         assertEquals(0.9477 + 0.9477 * atLeast(8, 12, 0.9), last.expectedTips, EXACT);
     }
 
     @Test
     public void perfectHitsFlagVolley4AsADownCellVolley() {
         List<HiveTipModel.VolleyOdds> odds = HiveTipModel.odds(ROUTE, 1.0);
-        // A tips on its 3rd preload (the 4th is lost), B fills to 8 over volleys 2 and 3 and tips, and A comes back
-        // up: volley 4 flies at the down B.
         double[] tips = {1, 1, 2, 2};
         double[] bTipped = {0, 0, 1, 1};
         for (int i = 0; i < 4; i++) {
@@ -118,7 +111,6 @@ public class HiveTipModelTest {
         assertEquals(0.0, odds.get(0).pDownCell, 0.0);
         assertEquals(aMissed, odds.get(1).pDownCell, EXACT);
         assertEquals(aMissed, odds.get(2).pDownCell, EXACT);
-        // Volley 4 is also at a down cell when B already tipped on volley 3.
         assertEquals(aMissed + 0.9477 * Math.pow(0.9, 8), odds.get(3).pDownCell, EXACT);
         assertTrue(odds.get(1).flagged());
         assertTrue(odds.get(3).flagged());
@@ -127,8 +119,6 @@ public class HiveTipModelTest {
     @Test
     public void matchesTheResearchOddsAt90And80And70PercentHits() {
         double[] hitRates = {0.9, 0.8, 0.7};
-        // Research table (2 places; B by volley 4 at 0.9 to 3): A tips on volley 1; B by volley 3 and by volley 4,
-        // both given A tipped; both tip.
         double[] aTips = {0.95, 0.82, 0.65};
         double[] bBy3GivenA = {0.43, 0.17, 0.06};
         double[] bBy4GivenA = {0.996, 0.93, 0.72};
@@ -164,11 +154,9 @@ public class HiveTipModelTest {
 
     @Test
     public void theRestOfATippingVolleyIsLost() {
-        // A tips on the 3rd preload; the 4th would make B's 4 + 3 into 8 if it carried over.
         List<HiveTipModel.VolleyOdds> seven = HiveTipModel.odds(Arrays.asList(A, B, B), new int[] {4, 4, 3}, 1.0);
         assertEquals(0.0, seven.get(2).pTipped(B), 0.0);
         assertEquals(1.0, seven.get(2).expectedTips, 0.0);
-        // B keeps its 7 between volleys: one more ball tips it.
         List<HiveTipModel.VolleyOdds> topped = HiveTipModel.odds(ROUTE, new int[] {4, 4, 3, 1}, 1.0);
         assertEquals(1.0, topped.get(3).pTipped(B), 0.0);
         assertEquals(2.0, topped.get(3).expectedTips, 0.0);
@@ -178,7 +166,6 @@ public class HiveTipModelTest {
     public void aCellThatComesBackUpIsEmptyAndTipsAt8() {
         List<HiveCell> aimed = Arrays.asList(A, B, B, A, A);
         List<HiveTipModel.VolleyOdds> odds = HiveTipModel.odds(aimed, 1.0);
-        // A is back up after B tips on volley 3, without its nectar or pollen: 4 balls leave it 4 short.
         double[] tips = {1, 1, 2, 2, 3};
         for (int i = 0; i < tips.length; i++) {
             assertEquals("volley " + (i + 1), tips[i], odds.get(i).expectedTips, 0.0);
@@ -190,7 +177,6 @@ public class HiveTipModelTest {
 
     @Test
     public void aVolleyAtADownCellScoresNothing() {
-        // Volley 1 at the down B is lost: B comes up empty after A tips and needs volleys 3 and 4.
         List<HiveTipModel.VolleyOdds> odds = HiveTipModel.odds(Arrays.asList(B, A, B, B), 1.0);
         double[] down = {1, 0, 0, 0};
         double[] tips = {0, 1, 1, 2};
@@ -241,7 +227,6 @@ public class HiveTipModelTest {
         assertThrows(IllegalArgumentException.class, () -> HiveTipModel.odds(ROUTE, -0.1));
         assertThrows(IllegalArgumentException.class, () -> HiveTipModel.odds(ROUTE, 1.1));
         assertThrows(IllegalArgumentException.class, () -> HiveTipModel.odds(ROUTE, Double.NaN));
-        // G407: no robot holds more than 4.
         assertThrows(IllegalArgumentException.class, () -> HiveTipModel.odds(ROUTE, new int[] {4, 5, 4, 4}, 0.9));
         assertThrows(IllegalArgumentException.class, () -> HiveTipModel.odds(ROUTE, new int[] {4, -1, 4, 4}, 0.9));
         assertThrows(IllegalArgumentException.class, () -> HiveTipModel.odds(ROUTE, new int[] {4, 4, 4}, 0.9));

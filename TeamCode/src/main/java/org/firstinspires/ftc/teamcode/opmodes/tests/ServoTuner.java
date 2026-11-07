@@ -125,8 +125,6 @@ public class ServoTuner extends NextOpMode {
 
     @Override
     public void start() {
-        // Mode switches only: every servo write happens in periodic(). No robot.reset() (it writes the servos now).
-        // Hood RAW and turret HOLD are left for the next OpMode's robot.reset(), as in Hardware Test.
         robot.flywheel.off();
         robot.turret.hold(0);
         robot.hood.raw(() -> hoodPosition);
@@ -194,7 +192,6 @@ public class ServoTuner extends NextOpMode {
 
     @Override
     public void end() {
-        // Out of RAW, both flower servos enabled, for whatever runs next.
         robot.flower.reset();
     }
 }

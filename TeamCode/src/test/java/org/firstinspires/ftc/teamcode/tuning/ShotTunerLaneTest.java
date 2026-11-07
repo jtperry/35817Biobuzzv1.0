@@ -19,7 +19,6 @@ public class ShotTunerLaneTest {
 
     private static final double EPS = 1e-9;
 
-    // Spec 7.3, blue, West: x, y, heading degrees for 30, 35, ... 80.
     private static final double[][] BLUE_WEST = {
             {84.2, 116, -90}, {84.2, 121, -90}, {64.8, 121, -61}, {55.9, 121, -51}, {48.5, 121, -44},
             {41.8, 121, -40}, {35.5, 121, -36}, {29.4, 121, -33}, {23.6, 121, -30}, {17.9, 121, -28},
@@ -169,8 +168,6 @@ public class ShotTunerLaneTest {
 
     @Test
     public void nominalsAreRoundedToATenthAndIncludeTheEnd() {
-        // Back-leg distances, so the geometry is trivial. (0.7 - 0.1) / 0.1 is 5.999999999999999, which needs
-        // the 1e-6 tolerance to give 7 spots; 0.1 + 2 * 0.1 is 0.30000000000000004, which needs the rounding.
         ShotTunerLane.START_IN = 0.1;
         ShotTunerLane.END_IN = 0.7;
         ShotTunerLane.STEP_IN = 0.1;
@@ -233,24 +230,20 @@ public class ShotTunerLaneTest {
 
     @Test
     public void aStartNearOneWallRelaxesOnlyThatWall() {
-        // Heading -90: the right side faces the west wall, so this start keeps 0.5 in to it.
         double x = Field.ROBOT_SIDE_IN + 0.5;
         Pose start = new Pose(x, 72, Math.toRadians(-90));
         assertTrue(ShotTunerLane.linearLegClear(start, new Pose(x, 40, Math.toRadians(-90)), start));
         assertFalse(ShotTunerLane.linearLegClear(start, new Pose(x - 0.2, 40, Math.toRadians(-90)), start));
-        // 0.8 in from the north wall (back edge) and from the south wall (front edge): closer than WALL_MARGIN_IN.
         double north = Field.SIZE_IN - Field.ROBOT_BACK_IN - 0.8;
         assertFalse(ShotTunerLane.linearLegClear(start, new Pose(x, north, Math.toRadians(-90)), start));
         double south = Field.ROBOT_FRONT_IN + 0.8;
         assertFalse(ShotTunerLane.linearLegClear(start, new Pose(x, south, Math.toRadians(-90)), start));
-        // The full margin on the other walls still passes.
         assertTrue(ShotTunerLane.linearLegClear(start, new Pose(x, north - 0.3, Math.toRadians(-90)), start));
     }
 
     @Test
     public void aStartAHairPastAWallMayMoveAwayButNotFartherPast() {
         Pose slot = Field.restartPose(Alliance.BLUE, 0);
-        // Slot 0's left side is flush on the east wall: 0.02 in farther is 0.02 in past it.
         Pose start = new Pose(slot.x() + 0.02, slot.y(), slot.heading());
         assertFalse(ShotTunerLane.pastWall(start));
         assertTrue(ShotTunerLane.linearLegClear(start, new Pose(start.x() - 10, start.y(), start.heading()), start));
@@ -307,8 +300,6 @@ public class ShotTunerLaneTest {
         return ShotTunerLane.linearLegClear(from, turnFacing, from);
     }
 
-    // Slot 2 is left out: its rotated footprint clears the frame by about 5 in, but the frame check uses the
-    // footprint's bounding box, which overlaps the frame corner mid-turn, so that leg is refused.
     @Test
     public void slots0And1ReachTheTurnPointClearOfTheHiveAndWalls() {
         for (Alliance alliance : Alliance.values()) {
@@ -372,12 +363,10 @@ public class ShotTunerLaneTest {
         for (Alliance alliance : Alliance.values()) {
             assertTrue(alliance.name(), ShotTunerLane.poseClear(turnFacing(alliance)));
         }
-        // Back edge 0.13 in from the far wall: inside the wall, but not by WALL_MARGIN_IN.
         ShotTunerLane.TURN_IN = 51;
         for (Alliance alliance : Alliance.values()) {
             assertFalse(alliance.name(), ShotTunerLane.poseClear(turnFacing(alliance)));
         }
-        // The spots before it still pass, so the turn point needs its own check.
         for (ShotTunerLane.Spot spot : ShotTunerLane.spots(Alliance.BLUE)) {
             if (spot.nominalIn == 50) {
                 assertTrue(spot.valid);

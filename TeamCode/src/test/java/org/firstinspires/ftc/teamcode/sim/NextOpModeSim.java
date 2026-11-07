@@ -41,17 +41,10 @@ public abstract class NextOpModeSim extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        // NextMotor and NextServo find their devices through RobotController.hardwareMap(), which the robot's event
-        // loop provides: give it one that serves this OpMode's (fake) hardware map.
         RobotController.eventLoop = eventLoopServing(hardwareMap);
-        // NextFTC's Debouncer reads Kotlin's TimeSource, which SimLoop never moves onto sim time. With no debounce,
-        // atSpeed follows the RPM check alone and the run stays deterministic; it rises about 0.1 s (5 ticks)
-        // earlier than on the robot (decision 42).
         Flywheel.AT_SPEED_DEBOUNCE_S = 0;
-        // NextFTC builds the robot once, before any OpMode runs.
         Robot robot = new Robot();
 
-        // BoundNextOpMode.runOpMode from dev.nextftc.v2:robot:0.2.1, step for step (hook order checked with javap).
         NextOpMode.Companion.setActiveGamepad1$robot_release(gamepad1);
         NextOpMode.Companion.setActiveGamepad2$robot_release(gamepad2);
         NextOpMode.Companion.setActiveTelemetry$robot_release(telemetry);
@@ -102,7 +95,6 @@ public abstract class NextOpModeSim extends LinearOpMode {
                     try {
                         hook.afterEnd();
                     } catch (Throwable throwable) {
-                        // NextFTC logs this through its RobotLog and carries on; the sim prints it.
                         System.err.println(hook.getClass().getSimpleName()
                                 + " threw while cleaning up after the OpMode.");
                         throwable.printStackTrace();
@@ -124,7 +116,6 @@ public abstract class NextOpModeSim extends LinearOpMode {
     @SuppressWarnings("unchecked")
     private static void reportBelief(Robot robot) {
         Object sink = OpMode.blackboard.get(BELIEF_SINK_KEY);
-        // No follower: INIT failed, and initCheck has already thrown that error.
         if (!(sink instanceof BiConsumer) || robot.follower() == null) {
             return;
         }

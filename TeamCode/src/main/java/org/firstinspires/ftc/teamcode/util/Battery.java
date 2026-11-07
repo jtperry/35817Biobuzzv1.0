@@ -4,7 +4,6 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
-/** Battery volts. Each read is its own hub command (not part of the bulk read), so it only reads every READ_MS. */
 @Configurable
 public final class Battery {
 

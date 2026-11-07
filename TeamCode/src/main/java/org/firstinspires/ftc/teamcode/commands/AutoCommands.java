@@ -44,7 +44,6 @@ public final class AutoCommands {
      * after TURN_CAP_MS. For a turn the next path would otherwise make while driving toward a wall.
      */
     public static Command turnTo(Robot robot, Pose target) {
-        // A plain instant hold, so the cap bounds the whole turn whatever Ivy's hold command waits for.
         return Commands.instant(() -> robot.follower().hold(target))
                 .then(Commands.waitUntil(() -> headingWithin(robot.pose().heading(), target.heading(), TURN_DONE_DEG))
                         .raceWith(Commands.waitMs(TURN_CAP_MS)));
@@ -124,7 +123,6 @@ public final class AutoCommands {
                         follow(robot.follower(), path).raceWith(Commands.waitUntil(stuck::isStuck))),
                 robot.intake.intake())
                 .then(robot.intake.stopIntake())
-                // Stuck: hold where it is, do not push into the jam. Else hold the path end.
                 .then(Commands.instant(() -> robot.follower().hold(
                         stuck.gaveUp() ? robot.pose() : path.endPose())));
     }
@@ -138,7 +136,6 @@ public final class AutoCommands {
     /** Drive path, then hold its end pose. */
     public static Command drive(Robot robot, Path path) {
         return follow(robot.follower(), path)
-                // endPose, not hold(follower): that one grabs the start pose.
                 .then(hold(robot.follower(), path.endPose()));
     }
 

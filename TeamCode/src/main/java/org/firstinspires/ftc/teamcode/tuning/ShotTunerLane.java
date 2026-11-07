@@ -95,7 +95,6 @@ public final class ShotTunerLane {
         int count = (int) Math.min(MAX_SPOTS, steps);
         List<Spot> spots = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            // The first nominal is START_IN itself: START_IN + 0 * STEP_IN is NaN for a non-finite step.
             double nominal = i == 0 ? START_IN : START_IN + i * STEP_IN;
             spots.add(spot(alliance, Math.round(nominal * 10) / 10.0));
         }
@@ -175,7 +174,6 @@ public final class ShotTunerLane {
                 || pastWall(start)) {
             return WALL;
         }
-        // Per wall: the full margin, or start's own clearance to that wall when it is smaller (no floor).
         double[] wallMargins = wallClearances(start.x(), start.y(), start.heading());
         for (int wall = 0; wall < wallMargins.length; wall++) {
             wallMargins[wall] = Math.min(WALL_MARGIN_IN, wallMargins[wall]) - WALL_SLACK_IN;
@@ -235,7 +233,6 @@ public final class ShotTunerLane {
             dx = nominalIn * Math.cos(back);
             dy = nominalIn * Math.sin(back);
         } else {
-            // |turn + t * side| = nominal (relative to cell A): t^2 + 2bt + TURN^2 - nominal^2 = 0, larger root.
             double side = Math.toRadians(SIDE_DEG);
             double ux = Math.cos(side);
             double uy = Math.sin(side);

@@ -81,7 +81,6 @@ public class RobotInitCheckTest {
         } catch (RuntimeException e) {
             fail("initFollower threw inside the OpMode constructor: " + e);
         }
-        // The same object, so the DS shows its own message.
         assertSame(missing, afterConstruction());
     }
 
@@ -124,7 +123,6 @@ public class RobotInitCheckTest {
         robot.bindHardware(noOctoQuad);
         robot.beginAuto(noOctoQuad, Alliance.RED, new Pose(136, 137, -Math.PI / 2));
         assertTrue(robot.hasAutoHandoff());
-        // Auto B: the robot was moved to B's start, but its follower fails.
         scripted.buildError = missing;
         robot.bindHardware(noOctoQuad);
         robot.beginAuto(noOctoQuad, Alliance.RED, start);
@@ -140,7 +138,6 @@ public class RobotInitCheckTest {
         robot.bindHardware(noOctoQuad);
         robot.beginAuto(noOctoQuad, Alliance.RED, start);
         robot.resetInInit();
-        // The follower is fine, so the robot stands at this auto's start pose.
         assertTrue(robot.hasAutoHandoff());
         assertEquals(start.x(), robot.handoffPose().x(), 0.0);
         assertEquals(start.y(), robot.handoffPose().y(), 0.0);

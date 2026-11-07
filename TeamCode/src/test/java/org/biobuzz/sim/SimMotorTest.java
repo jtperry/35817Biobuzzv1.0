@@ -34,7 +34,6 @@ public class SimMotorTest {
         motor.setDirection(DcMotorSimple.Direction.REVERSE);
         motor.setPower(0.6);
         assertEquals(-0.6, motor.hubPower(), EPS);
-        // As the SDK reports it: the command the code gave, direction undone.
         assertEquals(0.6, motor.getPower(), EPS);
     }
 
@@ -50,7 +49,6 @@ public class SimMotorTest {
     @Test
     public void currentAndModeCallsDoNotThrow() {
         SimMotor motor = new SimMotor();
-        // No current model: Hardware Test reads 0 A in the sim.
         assertEquals(0.0, motor.getCurrent(CurrentUnit.AMPS), 0.0);
         assertEquals(DcMotor.RunMode.RUN_WITHOUT_ENCODER, motor.getMode());
         motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -64,7 +62,6 @@ public class SimMotorTest {
         SimMotor motor = new SimMotor();
         FakeHardwareMap hardwareMap = new FakeHardwareMap();
         hardwareMap.register("flywheel", motor);
-        // NextMotor: RobotController.hardwareMap[name] as DcMotorImplEx.
         assertSame(motor, (DcMotorImplEx) hardwareMap.get("flywheel"));
         assertSame(motor, hardwareMap.get(DcMotorEx.class, "flywheel"));
         assertSame(motor, hardwareMap.dcMotor.get("flywheel"));

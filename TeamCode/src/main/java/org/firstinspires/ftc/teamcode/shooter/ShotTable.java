@@ -14,7 +14,6 @@ public final class ShotTable {
     /** Scales the whole RPM table. 0.95 = every shot 5% slower. */
     public static double RPM_SCALE = 1.0;
 
-    // Physics fallback for flight time, used only while FLIGHT_S is empty.
     public static double BALL_EXIT_EFFICIENCY = 0.5;
     /** Flywheel center above the floor, inches (CAD). */
     public static double LAUNCH_HEIGHT_IN = 12.5;
@@ -57,7 +56,6 @@ public final class ShotTable {
     /** v1 estimate: exit speed = flywheel surface speed x efficiency, on the low arc that reaches cell height. */
     static double physicsFlightTimeS(double distanceIn, double rpm) {
         double speed = BALL_EXIT_EFFICIENCY * Math.PI * FLYWHEEL_DIAMETER_IN * rpm / 60.0;
-        // Written as !(x > 0) so a NaN input gives 0 too.
         if (!(speed > 0) || !(distanceIn > 0)) {
             return 0;
         }

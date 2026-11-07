@@ -56,7 +56,6 @@ public class ShotSolverTest {
     public void brakingToAStopBeforeReleaseRemovesTheLead() {
         solver.update(0, 0, 0, 0, 40, 0, 0.1, 100, 0);
         ShotSolution shot = solver.update(0, 0, 0, 0, 20, 0, 0.1, 100, 0);
-        // -200 in/s^2 stops 20 in/s in 0.1 s (< 0.15 s latency): stopping distance 1 in, no lead.
         assertEquals(0.0, shot.releaseSpeed, EPS);
         assertEquals(1.0, shot.releaseY, EPS);
         assertEquals(100.0, shot.aimX, EPS);
@@ -67,7 +66,6 @@ public class ShotSolverTest {
     public void brakingSlowlyShrinksTheLeadButNeverFlipsIt() {
         solver.update(0, 0, 0, 0, 40, 0, 0.1, 100, 0);
         ShotSolution shot = solver.update(0, 0, 0, 0, 38, 0, 0.1, 100, 0);
-        // -20 in/s^2: release speed 38 - 3 = 35, travel (38 + 35) / 2 * 0.15 = 5.475.
         assertEquals(35.0, shot.releaseSpeed, EPS);
         assertEquals(5.475, shot.releaseY, EPS);
         assertEquals(-17.5, shot.aimY, EPS);

@@ -105,7 +105,6 @@ public final class ShotTunerRoute {
      */
     public static Plan plan(Pose start, ShotTunerLane.Spot held, ShotTunerLane.Spot target, Pose cell, Pose turn,
                             boolean firstMove) {
-        // Rule 1: not plannable.
         if (!finite(start) || !finite(cell) || !finite(turn)) {
             return blocked("pose not finite");
         }
@@ -117,19 +116,16 @@ public final class ShotTunerRoute {
             return blocked("pose past a wall");
         }
         Pose goal = ShotTunerLane.pose(target);
-        // Rule 2: already there.
         if (length(start, goal) < MIN_LEG_IN && Math.abs(MathUtil.wrapRadians(goal.heading() - start.heading()))
                 < MIN_TURN_RAD) {
             return new Plan(new ArrayList<Leg>(), false, "", ALREADY_THERE);
         }
-        // Rule 3: along the lane (failed checks fall through to rule 5).
         if (held != null && onSideLeg(held, cell, turn) == onSideLeg(target, cell, turn)) {
             Leg leg = straight(start, goal, cell);
             if (clear(leg, cell, start)) {
                 return route(ALONG_THE_LANE, leg);
             }
         }
-        // Rule 4: direct, back to the lane after a nudge or an interrupted move.
         if (!firstMove && held == null && nearLane(start, target, cell, turn)) {
             Leg leg = new Leg(start, goal, false);
             if (clear(leg, cell, start)) {
@@ -158,8 +154,6 @@ public final class ShotTunerRoute {
             }
             return route(VIA_TURN_POINT, toTurn, fromTurn);
         }
-        // One leg start -> target. Leg 2 skipped: leg 1 (linear) ends at the target. Leg 1 skipped: leg 2 starts at
-        // the start pose, facing cell A only if the robot already faces it.
         Leg merged = skipToTurn ? straight(start, goal, cell) : new Leg(start, goal, false);
         if (merged.inPlace()) {
             String block = linearBlock(start, goal, start);

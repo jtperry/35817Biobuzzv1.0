@@ -29,8 +29,6 @@ public final class SimMotor extends DcMotorImplEx implements FakeDevice {
     }
 
     private SimMotor(Hub hub) {
-        // The 4-argument constructor: the shorter ones look up the "Motor" configuration type, which only the
-        // robot app registers (a ClassCastException on a JVM).
         super(hub, PORT, DcMotorSimple.Direction.FORWARD, new MotorConfigurationType());
         this.hub = hub;
     }
@@ -72,7 +70,6 @@ public final class SimMotor extends DcMotorImplEx implements FakeDevice {
             return new UnsupportedOperationException("SimMotor hub: " + method + " is not simulated");
         }
 
-        // ---- what our code reaches, and the plain reads of that state
 
         @Override
         public void setMotorType(int motor, MotorConfigurationType motorType) {
@@ -141,7 +138,6 @@ public final class SimMotor extends DcMotorImplEx implements FakeDevice {
             return 0;
         }
 
-        // ---- HardwareDevice
 
         @Override
         public HardwareDevice.Manufacturer getManufacturer() {
@@ -171,7 +167,6 @@ public final class SimMotor extends DcMotorImplEx implements FakeDevice {
         public void close() {
         }
 
-        // ---- not simulated
 
         @Override
         public boolean isBusy(int motor) {

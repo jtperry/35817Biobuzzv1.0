@@ -19,7 +19,6 @@ public class TurretTest {
 
     @Test
     public void exactInRangeAngleWinsWhenTheTurretIsNotNearTheLimit() {
-        // 205 is past max by 4.5, but the turret is at +5: the exact answer -155 is in range.
         assertEquals(-155.0, choose(-155, 5), EPS);
         assertEquals(-155.0, choose(205, 5), EPS);
     }
@@ -46,7 +45,6 @@ public class TurretTest {
 
     @Test
     public void asymmetricRangeDoesNotTreatTheSignAsTheSide() {
-        // Range -150..250 (calibrated off center): at +5 the turret is nowhere near max.
         assertEquals(-105.0, Turret.chooseAngle(255, 5, -150, 250, HYST), EPS);
         assertEquals(250.0, Turret.chooseAngle(255, 245, -150, 250, HYST), EPS);
     }

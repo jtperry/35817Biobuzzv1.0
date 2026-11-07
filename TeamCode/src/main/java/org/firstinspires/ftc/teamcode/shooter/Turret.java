@@ -112,7 +112,6 @@ public class Turret implements Mechanism {
         estimate.step(commandedDeg, SLEW_DEG_PER_SEC, System.nanoTime());
     }
 
-    // ---------------------------------------------------------------- modes
 
     public void track() {
         mode = Mode.TRACK;
@@ -162,7 +161,6 @@ public class Turret implements Mechanism {
         trimDeg = 0;
     }
 
-    // ---------------------------------------------------------------- state
 
     /** The servos have arrived (slew estimate) and they are pointing at the requested angle (see onTarget()). */
     public boolean settled() {
@@ -224,7 +222,6 @@ public class Turret implements Mechanism {
         DEG_PER_POSITION = degPerPosition;
     }
 
-    // ---------------------------------------------------------------- internals
 
     private double chooseAngle(double degrees) {
         return chooseAngle(degrees, commandedDeg, minDeg(), maxDeg(), WRAP_HYSTERESIS_DEG);

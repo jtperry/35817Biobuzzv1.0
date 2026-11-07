@@ -66,8 +66,6 @@ public final class HiveTipModel {
             throw new IllegalArgumentException(aimed.size() + " aimed cells for " + balls.length + " volleys");
         }
         int volleys = balls.length;
-        // weight[tips][pollen]: P(that many tips so far and that much pollen in the up cell). A volley tips the hive at
-        // most once (the rest of it is lost), and the up cell always holds less than it tips at.
         double[][] weight = new double[volleys + 1][LATER_TIP_POLLEN];
         weight[0][0] = 1;
         List<VolleyOdds> odds = new ArrayList<>();
@@ -87,7 +85,6 @@ public final class HiveTipModel {
                         continue;
                     }
                     if (cell != upCell(tips)) {
-                        // At a down cell: nothing goes in, nothing changes.
                         down += w;
                         next[tips][pollen] += w;
                         continue;
@@ -96,7 +93,6 @@ public final class HiveTipModel {
                     for (int hits = 0; hits <= n; hits++) {
                         double share = w * binomial(n, hits, p);
                         if (hits >= missing) {
-                            // Tips: the cell empties, the other (empty) one comes up, the rest of the volley is lost.
                             next[tips + 1][0] += share;
                         } else {
                             next[tips][pollen + hits] += share;

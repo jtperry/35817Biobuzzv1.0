@@ -26,23 +26,18 @@ public abstract class MainAuto2Tip extends MainAuto {
 
     @Override
     protected Command routine() {
-        // Each step has a stable id (StepMarks): the sim's timeline and the Zenith plan use them.
         return sequential(
                 step("preload-volley", ShootCommands.volley(robot)),
 
-                // First half full power, rest 30%. Stuck on a ball 3 s = move on.
                 step("intakeflower", AutoCommands.withSpeeds(robot,
                         AutoCommands.driveIntakingUnjam(robot, route.intakeflower()),
                         0, 100,
                         0.5, 30)),
                 step("garden-intake", AutoCommands.intakeFor(robot, 500)),
                 step("gardenhiveBshoot", AutoCommands.drive(robot, route.gardenhiveBshoot())),
-                // Turn to flower 1's heading here, during the volley (the turret keeps aiming), so the short drive
-                // in toward the wall is straight instead of finishing the turn on the way.
                 step("volley-B1+turn", parallel(ShootCommands.volley(robot),
                         AutoCommands.turnTo(robot, route.hiveBshootflower1().get(0)))),
 
-                // Flower 1 is close: wait until the arm is down before driving in.
                 step("flower-deploy", sequential(
                         Commands.instant(robot.flower::deploy),
                         Commands.waitUntil(robot.flower::atTarget).raceWith(Commands.waitMs(FLOWER_WAIT_CAP_MS)))),
@@ -57,7 +52,6 @@ public abstract class MainAuto2Tip extends MainAuto {
                 step("flower2-intake", AutoCommands.intakeFor(robot, 1000)),
                 step("flower-stow", Commands.instant(robot.flower::stow)),
 
-                // The export calls this spot hiveAshoot, but it is on B's side: the third volley at B.
                 step("flower2hiveAshoot", AutoCommands.drive(robot, route.flower2hiveAshoot())),
                 step("volley-B3", ShootCommands.volley(robot)),
 

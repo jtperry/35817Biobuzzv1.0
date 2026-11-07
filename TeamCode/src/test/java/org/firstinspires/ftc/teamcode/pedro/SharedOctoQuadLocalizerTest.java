@@ -28,7 +28,6 @@ public class SharedOctoQuadLocalizerTest {
     @Before
     public void setUp() {
         savedTimeoutMs = SharedOctoQuadLocalizer.RUNNING_TIMEOUT_MS;
-        // Short, so the timeout tests stay quick; every assertion below is relative to it.
         SharedOctoQuadLocalizer.RUNNING_TIMEOUT_MS = TIMEOUT_MS;
     }
 
@@ -43,7 +42,6 @@ public class SharedOctoQuadLocalizerTest {
                     if (method.getName().equals("getLocalizerStatus")) {
                         return statuses[(int) Math.min(statusReads++, statuses.length - 1)];
                     }
-                    // Every other call the constructor makes is a void setter or read.
                     return null;
                 });
         HardwareMap hardwareMap = new HardwareMap(null, null) {
@@ -103,7 +101,6 @@ public class SharedOctoQuadLocalizerTest {
     @Test(timeout = 10000)
     public void stopDuringTheWaitEndsItAtOnceAndKeepsTheInterrupt() {
         statuses = new LocalizerStatus[] {LocalizerStatus.INVALID};
-        // STOP during INIT: the SDK interrupts the OpMode thread.
         Thread.currentThread().interrupt();
         try {
             HardwareMap hardwareMap = hardwareMap();
@@ -113,7 +110,6 @@ public class SharedOctoQuadLocalizerTest {
             assertTrue("interrupt flag kept", Thread.currentThread().isInterrupted());
             assertTrue("returned after " + seconds + " s", seconds < 0.5);
         } finally {
-            // This is the timed test thread (the runner thread's @After cannot clear it): never leave the flag set.
             Thread.interrupted();
         }
     }

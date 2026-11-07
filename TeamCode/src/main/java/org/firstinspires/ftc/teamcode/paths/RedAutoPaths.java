@@ -8,7 +8,6 @@ import com.pedropathing.math.Pose;
 import com.pedropathing.paths.Path;
 import com.pedropathing.paths.interpolator.Interpolator;
 
-// Visualizer export, mirrored on x and y (180 deg turn about center). Never hand-edit, re-export.
 public class RedAutoPaths {
 
     private final PoseFactory poseFactory = PoseFactory.degrees().mirrorX(72).mirrorY(72);

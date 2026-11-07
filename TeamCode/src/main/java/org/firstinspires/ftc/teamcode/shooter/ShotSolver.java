@@ -78,7 +78,6 @@ public final class ShotSolver {
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(heading)
                 || !Double.isFinite(vx) || !Double.isFinite(vy) || !Double.isFinite(omega)
                 || !Double.isFinite(dtS) || !Double.isFinite(cellX) || !Double.isFinite(cellY)) {
-            // One bad sample must not poison the filters: forget history, keep the last shot.
             reset();
             return solution;
         }
@@ -100,7 +99,6 @@ public final class ShotSolver {
             releaseSpeed = speed + alongAccel * latency;
             double travel;
             if (releaseSpeed <= 0) {
-                // Stops before the ball leaves: only the stopping distance, no lead.
                 travel = alongAccel < 0 ? speed * speed / (-2 * alongAccel) : 0;
                 releaseSpeed = 0;
             } else {
@@ -117,7 +115,6 @@ public final class ShotSolver {
         double rx = x + moveX + TURRET_OFFSET_FORWARD_IN * cos - TURRET_OFFSET_LEFT_IN * sin;
         double ry = y + moveY + TURRET_OFFSET_FORWARD_IN * sin + TURRET_OFFSET_LEFT_IN * cos;
 
-        // Flight time depends on distance, distance depends on the aim point: 3 passes settle it.
         double aimX = cellX;
         double aimY = cellY;
         for (int i = 0; i < 3; i++) {

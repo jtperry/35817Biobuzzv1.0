@@ -133,7 +133,6 @@ public class TurretCalibration extends NextOpMode {
         if (allRecorded()) {
             double degPerPosition = degPerPosition();
             double midpointErrorDeg = (forward - (left + right) / 2) * degPerPosition;
-            // Locale.US: these lines are pasted into Java, which needs a dot as the decimal point.
             tele.add("paste", String.format(Locale.US, "public static double CENTER_POSITION = %.4f;", forward));
             tele.add("paste", String.format(Locale.US, "public static double DEG_PER_POSITION = %.1f;", degPerPosition));
             tele.add("forward mark vs left/right midpoint", String.format("%.1f deg (should be near 0)", midpointErrorDeg));

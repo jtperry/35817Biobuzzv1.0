@@ -94,7 +94,6 @@ public final class ShootCommands {
                 feeding = true;
             } else if (!feeding) {
                 feeding = ready.getAsBoolean();
-                // This wait (from the start or the last pause) ran too long: feed anyway. Short dips keep pausing.
                 if (!feeding && (now - waitStartNanos) / 1e6 >= READY_TIMEOUT_MS) {
                     forced = true;
                     feeding = true;

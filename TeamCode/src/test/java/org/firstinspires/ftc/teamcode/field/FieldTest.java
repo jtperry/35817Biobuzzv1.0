@@ -99,12 +99,8 @@ public class FieldTest {
 
     @Test
     public void frameClearanceDependsOnWhichWayTheRobotFaces() {
-        // Frame top edge is y = 96.7, margin 2.0, so the footprint must stay above y = 98.7.
-        // Facing -y (heading -90 deg) the 9.70 in front reaches down to y = 98.3: too close.
         assertFalse(Field.clearOfFrame(84.2, 108, -Math.PI / 2, 2.0));
-        // Facing +y the 6.87 in back is the near side: y = 101.13, clear.
         assertTrue(Field.clearOfFrame(84.2, 108, Math.PI / 2, 2.0));
-        // Facing -y but 1 in farther out: 99.3, clear.
         assertTrue(Field.clearOfFrame(84.2, 109, -Math.PI / 2, 2.0));
     }
 }

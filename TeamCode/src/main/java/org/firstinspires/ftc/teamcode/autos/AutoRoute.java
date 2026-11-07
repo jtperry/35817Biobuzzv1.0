@@ -8,7 +8,6 @@ import org.firstinspires.ftc.teamcode.paths.RedAutoPaths;
 /** Paths MainAuto2Tip uses. */
 public interface AutoRoute {
 
-    // One method per path, same name as visualizer.
     Path intakeflower();
 
     Path gardenhiveBshoot();
@@ -27,7 +26,6 @@ public interface AutoRoute {
 
     Path parkpreppark();
 
-    // Adapters. Inherit export methods. Renamed path = compile error here.
     final class Red extends RedAutoPaths implements AutoRoute {
     }
 

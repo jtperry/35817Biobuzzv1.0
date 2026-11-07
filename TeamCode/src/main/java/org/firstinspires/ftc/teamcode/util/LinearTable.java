@@ -62,7 +62,6 @@ public final class LinearTable {
             throw new IllegalStateException("LinearTable is empty");
         }
         if (Double.isNaN(key)) {
-            // A bad distance must never throw mid-match: use the first point.
             return values[0];
         }
         int last = keys.length - 1;

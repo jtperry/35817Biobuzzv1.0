@@ -35,7 +35,6 @@ public class FakeOctoQuadTest {
 
     @Test
     public void runningWithGoodDataFromTheStart() {
-        // SharedOctoQuadLocalizer's INIT wait for RUNNING never sleeps.
         assertEquals(LocalizerStatus.RUNNING, octoQuad.getLocalizerStatus());
         read(octoQuad);
         assertTrue(localizer.isDataValid());
@@ -68,17 +67,14 @@ public class FakeOctoQuadTest {
     @Test
     public void reportMovesRigidlyWithTheRobotThroughTheOffset() {
         octoQuad.setTrueState(0, 0, 0, 0, 0, 0);
-        // The reported frame is turned +90 deg from the true one: a full rigid transform, not a shift.
         octoQuad.setLocalizerPose(1000, 500, (float) (Math.PI / 2));
 
-        // 10 in forward along true +x is 10 in along reported +y.
         octoQuad.setTrueState(10, 0, 0, 0, 0, 0);
         read(octoQuad);
         assertEquals(1000, localizer.posX_mm);
         assertEquals(500 + 254, localizer.posY_mm);
         assertEquals(Math.PI / 2, localizer.heading_rad, HEADING_STEP);
 
-        // Then 4 in to true +y and a 0.5 rad turn: (10, 4) turned 90 deg is (-4, 10).
         octoQuad.setTrueState(10, 4, 0.5, 0, 0, 0);
         read(octoQuad);
         assertEquals(1000 - 4 * MM_PER_IN, localizer.posX_mm, 0.5);
@@ -90,7 +86,6 @@ public class FakeOctoQuadTest {
     public void velocityIsFieldFrameInTheReportedFrame() {
         octoQuad.setTrueState(0, 0, 0, 0, 0, 0);
         octoQuad.setLocalizerPose(0, 0, (float) (Math.PI / 2));
-        // Facing reported +y: 10 in/s forward is +y, 2 in/s to the left is -x.
         octoQuad.setTrueState(0, 0, 0, 10, 2, 0.75);
         read(octoQuad);
         assertEquals(-2 * MM_PER_IN, localizer.velX_mmS, 0.5);
@@ -100,13 +95,11 @@ public class FakeOctoQuadTest {
 
     @Test
     public void velocityTurnsWithTheTrueHeadingAsWellAsTheOffset() {
-        // No offset yet: facing true +y, 10 in/s forward is +y and 2 in/s to the left is -x.
         octoQuad.setTrueState(0, 0, Math.PI / 2, 10, 2, 0);
         read(octoQuad);
         assertEquals(-2 * MM_PER_IN, localizer.velX_mmS, 0.5);
         assertEquals(10 * MM_PER_IN, localizer.velY_mmS, 0.5);
 
-        // Reported frame turned +90 deg, robot turned 0.5 rad in the true frame: forward is reported at both summed.
         octoQuad.setTrueState(0, 0, 0, 0, 0, 0);
         octoQuad.setLocalizerPose(0, 0, (float) (Math.PI / 2));
         octoQuad.setTrueState(0, 0, 0.5, 10, 0, 0);
@@ -148,21 +141,17 @@ public class FakeOctoQuadTest {
     public void flywheelSpunForwardReadsPositiveRpmThroughTheCodesOwnFormula() {
         BiobuzzSim sim = new BiobuzzSim();
         FakeOctoQuad device = sim.octoQuad();
-        // As Flywheel.useOctoQuad configures port 2.
         device.setSingleEncoderDirection(Flywheel.OCTOQUAD_PORT,
                 Flywheel.ENCODER_REVERSED ? EncoderDirection.REVERSE : EncoderDirection.FORWARD);
         device.setSingleVelocitySampleInterval(Flywheel.OCTOQUAD_PORT, Flywheel.VELOCITY_WINDOW_MS);
-        // Forward full power, as Flywheel writes it (MOTOR_1_REVERSED false).
         ((SimMotor) sim.hardwareMap.get(Flywheel.MOTOR_1)).setPower(1.0);
         for (int i = 0; i < 100; i++) {
             sim.step(0.02);
         }
         read(device);
-        // Flywheel.readRpm.
         double rpm = encoders.velocities[Flywheel.OCTOQUAD_PORT] * (1000.0 / Flywheel.VELOCITY_WINDOW_MS)
                 / Flywheel.COUNTS_PER_REV * 60.0;
         assertTrue("model " + sim.flywheelRpm() + " RPM", sim.flywheelRpm() > 3000);
-        // One count per window is 42.9 RPM.
         assertEquals(sim.flywheelRpm(), rpm, 43);
     }
 
@@ -171,7 +160,6 @@ public class FakeOctoQuadTest {
         BiobuzzSim sim = new BiobuzzSim();
         sim.placeAt(110.3, 133.21, Math.PI / 2);
         FakeOctoQuad device = sim.octoQuad();
-        // INIT, all before the first tick: reset, read, then the start pose.
         device.resetLocalizerAndCalibrateIMU();
         device.setLocalizerPose(2801, 3383, (float) (Math.PI / 2));
         for (int i = 0; i < 5; i++) {
@@ -184,7 +172,6 @@ public class FakeOctoQuadTest {
         assertEquals(0, localizer.velX_mmS);
         assertEquals(0, localizer.velY_mmS);
         assertEquals(0.0, localizer.velHeading_radS, 0.0);
-        // The plant did not move to the pose the code set.
         assertEquals(110.3, sim.pedroX(), 1e-9);
         assertEquals(133.21, sim.pedroY(), 1e-9);
         assertEquals(Math.PI / 2, sim.heading(), 1e-9);

@@ -65,7 +65,6 @@ public class Intake implements Mechanism {
     /** Known state: stages off, gate closed. */
     public void reset() {
         runStages(0, 0);
-        // Send the 0 now, like Flywheel.reset(), so the hub and NextMotor's write cache agree from here on.
         stage1.update();
         stage2.update();
         setGate(false);
@@ -76,7 +75,6 @@ public class Intake implements Mechanism {
         return stopRollers();
     }
 
-    // ---------------------------------------------------------------- commands
 
     public Command intake() {
         return infinite(() -> runStages(STAGE1_INTAKE_POWER, STAGE2_INTAKE_POWER));
@@ -142,7 +140,6 @@ public class Intake implements Mechanism {
         });
     }
 
-    // ---------------------------------------------------------------- state
 
     public boolean isGateOpen() {
         return gateOpen;
@@ -165,7 +162,6 @@ public class Intake implements Mechanism {
         return stage2.getCurrent().into(Units.Amperes);
     }
 
-    // ---------------------------------------------------------------- hardware
 
     private void runStages(double stage1Power, double stage2Power) {
         stage1.setThrottle(MathUtil.safePower(stage1Power * STAGE1_SIGN));

@@ -57,7 +57,6 @@ public class AutoHandoffTest {
         handoff.record(autoEnd);
         otherInit();
         handoff.poseOr(fallback);
-        // STOP during teleop INIT, then INIT again: no teleop loop ran.
         otherInit();
         assertTrue(handoff.pending());
         assertSame(autoEnd, handoff.poseOr(fallback));

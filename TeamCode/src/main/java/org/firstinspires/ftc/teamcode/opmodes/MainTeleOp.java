@@ -45,7 +45,6 @@ public class MainTeleOp extends NextOpMode {
             robot.setCell(HiveCell.A);
         }
         robot.initFollower(hardwareMap, robot.handoffPose());
-        // No reset here: init never moves servos. Reset in start().
 
         driver = new CommandGamepad(gamepad1);
         operator = new CommandGamepad(gamepad2);
@@ -53,7 +52,6 @@ public class MainTeleOp extends NextOpMode {
     }
 
     private void bindControls() {
-        // Operator: reset pose to a restart slot. B = right, X = left, dpad = the four flower slots.
         operator.b().onTrue(Commands.instant(() -> robot.resetPoseToSlot(0)));
         operator.dpadRight().onTrue(Commands.instant(() -> robot.resetPoseToSlot(1)));
         operator.dpadLeft().onTrue(Commands.instant(() -> robot.resetPoseToSlot(2)));
@@ -61,15 +59,12 @@ public class MainTeleOp extends NextOpMode {
         operator.dpadDown().onTrue(Commands.instant(() -> robot.resetPoseToSlot(4)));
         operator.x().onTrue(Commands.instant(() -> robot.resetPoseToSlot(5)));
 
-        // Hold RT = feed, gated per ball. Release = gate closed, stages off (the feed's end handler), so releasing RT
-        // never cancels an intake (LB) or eject (RB) that took over the stages.
         driver.rightTrigger().isOver(0.5).whileTrue(ShootCommands.whileHeld(robot));
         driver.leftBumper().whileTrue(robot.intake.intake());
         driver.rightBumper().whileTrue(robot.intake.eject());
         driver.a().onTrue(Commands.instant(robot.flower::toggle));
         driver.x().onTrue(Commands.instant(robot.flywheel::toggleArmed));
 
-        // Trims, same directions as v1.
         driver.dpadLeft().onTrue(Commands.instant(() -> robot.turret.trimStep(-1)));
         driver.dpadRight().onTrue(Commands.instant(() -> robot.turret.trimStep(1)));
         driver.dpadUp().onTrue(Commands.instant(() -> robot.hood.trimStep(1)));
@@ -82,7 +77,6 @@ public class MainTeleOp extends NextOpMode {
 
     @Override
     public void disabledPeriodic() {
-        // Triggers do not poll in init: read the pads directly. Only when there was no auto.
         if (!fromAuto) {
             if (gamepad1.dpad_left) {
                 robot.setAlliance(Alliance.BLUE);
@@ -120,19 +114,15 @@ public class MainTeleOp extends NextOpMode {
 
     @Override
     public void start() {
-        // No auto: alliance + slot picked in init. Start there.
         if (!fromAuto) {
             robot.resetPoseToStart();
         }
-        // Servos to a known state now, after play.
         robot.reset();
-        // Flywheel at shot speed the whole match.
         robot.flywheel.arm();
     }
 
     @Override
     public void periodic() {
-        // Teleop really runs now: the auto pose is used up (a STOP during INIT left it for the next INIT).
         robot.clearAutoHandoff();
         drive();
         robot.pickCellBySide();
@@ -140,7 +130,6 @@ public class MainTeleOp extends NextOpMode {
     }
 
     private void drive() {
-        // Red driver stands on the other side: flip both axes. Stick y is negative when pushed up.
         double flip = robot.alliance() == Alliance.RED ? -1 : 1;
         double scale = DriverInput.stickScale(gamepad1.left_stick_x, gamepad1.left_stick_y);
         DrivePowers powers = ManualDrive.fieldCentric(
@@ -148,7 +137,6 @@ public class MainTeleOp extends NextOpMode {
                 flip * gamepad1.left_stick_x * scale,
                 -DriverInput.turn(gamepad1.right_stick_x),
                 robot.pose().heading());
-        // Sticks released: hold the spot instead of coasting.
         ManualDrive.driveOrHold(robot.follower(), powers);
     }
 
@@ -162,7 +150,6 @@ public class MainTeleOp extends NextOpMode {
         tele.add("alliance / cell", robot.alliance() + " / " + robot.cell());
         tele.add("pose", formatPose(pose));
         tele.add("ready", robot.readyToShoot());
-        // The parts of "ready", so a feed that will not start shows what it waits for.
         tele.detail("at speed / turret settled / hood settled", robot.flywheel.atSpeed() + " / "
                 + robot.turret.settled() + " / " + robot.hood.settled());
         tele.add("flywheel", String.format("%s  %.0f / %.0f RPM",

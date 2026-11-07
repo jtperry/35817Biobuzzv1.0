@@ -65,7 +65,6 @@ public class ShotTunerRouteTest {
         ShotTunerLane.FRAME_MARGIN_IN = saved[13];
     }
 
-    // ---- helpers ----
 
     private static ShotTunerLane.Spot spot(Alliance alliance, double nominalIn) {
         for (ShotTunerLane.Spot spot : ShotTunerLane.spots(alliance)) {
@@ -210,7 +209,6 @@ public class ShotTunerRouteTest {
         assertEquals(facingCell, leg.facingCell);
     }
 
-    // ---- first move ----
 
     @Test
     public void theFirstMoveFromSlot0GoesViaTheTurnPoint() {
@@ -223,7 +221,6 @@ public class ShotTunerRouteTest {
                 plan.legs.clear();
                 fail("legs must be unmodifiable");
             } catch (UnsupportedOperationException expected) {
-                // the plan is read-only
             }
         }
     }
@@ -266,7 +263,6 @@ public class ShotTunerRouteTest {
         }
     }
 
-    // ---- along the lane ----
 
     @Test
     public void heldOnTheSameLegDrivesOneFacingLeg() {
@@ -300,13 +296,11 @@ public class ShotTunerRouteTest {
         }
     }
 
-    // ---- after a nudge (held null, not the first move) ----
 
     @Test
     public void aNudgeNearTheLaneDrivesStraightBack() {
         ShotTunerLane.Spot blue = spot(Alliance.BLUE, 60);
         for (Alliance alliance : Alliance.values()) {
-            // 3 in off the side leg, toward the hive, turned 20 deg.
             Pose start = pose(alliance, blue.x + 2, blue.y - 3, Math.toDegrees(blue.heading) + 20);
             ShotTunerRoute.Plan plan = plan(alliance, start, null, spot(alliance, 60), false);
             assertOneLeg(plan, "direct", false, start, target(alliance, 60));
@@ -317,16 +311,11 @@ public class ShotTunerRouteTest {
     @Test
     public void aNudgeWhoseDirectLegIsBlockedFallsBackToTheTurnPoint() {
         for (Alliance alliance : Alliance.values()) {
-            // 11.2 in off the back leg (inside LANE_TOLERANCE_IN, so rule 4 is entered): the direct leg's turn sweeps
-            // the footprint into the frame margin. The route via the turn point passes with only about 0.2 in of
-            // frame slack: this case relies on the FRAME_* values setUp() sets (today's Field values).
             Pose start = pose(alliance, 73, 107, 180);
             Pose target = target(alliance, 30);
             assertTrue(laneDistance(alliance, start, spot(alliance, 30)) <= ShotTunerRoute.LANE_TOLERANCE_IN);
             assertFalse(ShotTunerLane.linearLegClear(start, target, start));
             assertViaTurnPoint(alliance, plan(alliance, start, null, spot(alliance, 30), false), start, target);
-            // 11 in off the side leg (inside LANE_TOLERANCE_IN): the direct leg's turn sweeps a corner into the west
-            // wall.
             start = pose(alliance, 9, 110, -90);
             target = target(alliance, 80);
             assertTrue(laneDistance(alliance, start, spot(alliance, 80)) <= ShotTunerRoute.LANE_TOLERANCE_IN);
@@ -369,7 +358,6 @@ public class ShotTunerRouteTest {
     @Test
     public void farFromTheLaneGoesViaTheTurnPoint() {
         for (Alliance alliance : Alliance.values()) {
-            // 30 in west of the back leg, with the 30 in spot's heading.
             Pose start = pose(alliance, 54.2, 116, -90);
             assertViaTurnPoint(alliance, plan(alliance, start, null, spot(alliance, 30), false), start,
                     target(alliance, 30));
@@ -482,7 +470,6 @@ public class ShotTunerRouteTest {
         }
     }
 
-    // ---- via the turn point, merged legs ----
 
     /** Held at the 35 in spot (= the turn point with the default lane), target 40: leg 1 skipped, one facing leg. */
     @Test
@@ -587,19 +574,16 @@ public class ShotTunerRouteTest {
             ShotTunerLane.Spot target = spot(alliance, nominal);
             Pose goal = ShotTunerLane.pose(target);
             Pose start = pose(alliance, blue.x + dx, blue.y + dy, 180);
-            // Premises: a valid spot at the turn point, a clear turn point, a start not past a wall, a sub-inch leg.
             assertTrue(name, target.valid);
             assertTrue(name, ShotTunerLane.poseClear(turnFacing(alliance)));
             assertFalse(name, ShotTunerLane.pastWall(start));
             assertTrue(name, length(ShotTunerLane.turnPoint(alliance), goal) < ShotTunerRoute.MIN_LEG_IN);
             assertTrue(name, length(start, goal) < ShotTunerRoute.MIN_LEG_IN);
-            // Only the start-position sweep fails.
             assertEquals(name, "", ShotTunerLane.linearLegBlock(start, goal, start));
             assertEquals(name, "", ShotTunerLane.linearLegBlock(new Pose(goal.x(), goal.y(), start.heading()), goal,
                     start));
             assertEquals(name, block, ShotTunerLane.linearLegBlock(start,
                     new Pose(start.x(), start.y(), goal.heading()), start));
-            // Rule 4 (after a nudge) fails the same sweep and falls through to rule 5, which blocks the plan.
             for (boolean firstMove : new boolean[] {true, false}) {
                 ShotTunerRoute.Plan plan = plan(alliance, start, null, target, firstMove);
                 assertTrue(name, plan.blocked);
@@ -608,11 +592,9 @@ public class ShotTunerRouteTest {
         }
     }
 
-    // ---- blocked ----
 
     @Test
     public void aBlockedTurnPointBlocksEveryRouteThroughIt() {
-        // The turn point's footprint crosses the north wall while the 30-50 in spots stay valid.
         ShotTunerLane.TURN_IN = 52;
         for (Alliance alliance : Alliance.values()) {
             assertFalse(ShotTunerLane.poseClear(turnFacing(alliance)));
@@ -645,7 +627,6 @@ public class ShotTunerRouteTest {
             ShotTunerLane.Spot invalid = new ShotTunerLane.Spot(20, target.x, target.y, target.heading, false,
                     "hive frame");
             assertEquals("spot not valid", plan(alliance, slot, null, invalid, true).reason);
-            // A spot marked valid but with a pose that is not finite.
             ShotTunerLane.Spot[] notFinite = {
                     new ShotTunerLane.Spot(30, Double.NaN, target.y, target.heading, true, ""),
                     new ShotTunerLane.Spot(30, target.x, Double.POSITIVE_INFINITY, target.heading, true, ""),
@@ -654,7 +635,6 @@ public class ShotTunerRouteTest {
             for (ShotTunerLane.Spot spot : notFinite) {
                 assertEquals("spot not valid", plan(alliance, slot, null, spot, true).reason);
             }
-            // Slot 0 is flush on the blue (east for blue) wall: 1 in farther is 1 in past it.
             Pose past = Field.forAlliance(alliance, new Pose(Field.SIZE_IN - Field.ROBOT_SIDE_IN + 1,
                     Field.SIZE_IN - Field.ROBOT_BACK_IN, Math.toRadians(-90)));
             assertTrue(ShotTunerLane.pastWall(past));
