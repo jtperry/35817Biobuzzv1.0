@@ -30,7 +30,9 @@ public class Turret implements Mechanism {
     public static double PWM_MIN_US = 500;
     public static double PWM_MAX_US = 2500;
 
-    /** Servo position with the turret facing robot forward. From Turret Calibration. */
+    /** Turret angle at CENTER_POSITION: the middle of the servo travel faces the robot's back. */
+    public static final double CENTER_DEG = 180.0;
+    /** Servo position with the turret facing the robot's back (CENTER_DEG). From Turret Calibration. */
     public static double CENTER_POSITION = 0.5;
     /** Turret degrees per 1.0 of servo position (sign = direction). CAD predicts about 403. From Turret Calibration. */
     public static double DEG_PER_POSITION = 403.0;
@@ -81,13 +83,13 @@ public class Turret implements Mechanism {
         rightEnabled = true;
     }
 
-    /** Known state: tracking, no trim, pointed forward now. */
+    /** Known state: tracking, no trim, pointed at the back (middle of travel) now. */
     public void reset() {
         mode = Mode.TRACK;
         trimDeg = 0;
         trackingRateDegPerS = 0;
-        command(0);
-        requestedDeg = 0;
+        command(CENTER_DEG);
+        requestedDeg = CENTER_DEG;
         estimate.reset(commandedDeg);
     }
 
@@ -204,14 +206,14 @@ public class Turret implements Mechanism {
     }
 
     public static double degreesAt(double position) {
-        return (position - CENTER_POSITION) * DEG_PER_POSITION;
+        return CENTER_DEG + (position - CENTER_POSITION) * DEG_PER_POSITION;
     }
 
     public static double positionAt(double degrees) {
-        return CENTER_POSITION + degrees / DEG_PER_POSITION;
+        return CENTER_POSITION + (degrees - CENTER_DEG) / DEG_PER_POSITION;
     }
 
-    /** Servo position with the turret facing robot forward (the calibration's center). */
+    /** Servo position with the turret facing the robot's back (the calibration's center). */
     public static double centerPosition() {
         return CENTER_POSITION;
     }

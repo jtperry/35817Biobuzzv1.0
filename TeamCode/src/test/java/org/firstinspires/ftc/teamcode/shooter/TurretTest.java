@@ -56,8 +56,23 @@ public class TurretTest {
         try {
             Turret.setCalibration(0.6, -350.0);
             assertEquals(0.6, Turret.centerPosition(), EPS);
-            assertEquals(0.6, Turret.positionAt(0), EPS);
-            assertEquals(-35.0, Turret.degreesAt(0.7), EPS);
+            assertEquals(0.6, Turret.positionAt(180), EPS);
+            assertEquals(145.0, Turret.degreesAt(0.7), EPS);
+        } finally {
+            Turret.setCalibration(center, degPerPosition);
+        }
+    }
+
+    @Test
+    public void middleOfTravelFacesTheBack() {
+        double center = Turret.centerPosition();
+        double degPerPosition = Turret.DEG_PER_POSITION;
+        try {
+            Turret.setCalibration(0.5, 403.0);
+            assertEquals(180.0, Turret.degreesAt(0.5), EPS);
+            assertEquals(0.5, Turret.positionAt(180), EPS);
+            assertEquals(0.5 - 180.0 / 403.0, Turret.positionAt(0), EPS);
+            assertTrue(Turret.degreesAt(0) < 0 && Turret.degreesAt(1) > 360);
         } finally {
             Turret.setCalibration(center, degPerPosition);
         }

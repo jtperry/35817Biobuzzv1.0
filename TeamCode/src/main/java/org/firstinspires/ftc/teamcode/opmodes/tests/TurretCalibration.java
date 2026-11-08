@@ -18,11 +18,11 @@ import dev.nextftc.robot.triggers.CommandGamepad;
 /**
  * Measures the turret mapping (spec 5.2). Never drives. Gamepad 1:
  *   dpad left/right = jog servo position (hold LB = coarse); also leaves a hold or sweep
- *   A = record FORWARD (shooter points at robot front)
+ *   A = record BACK (shooter points at the robot's back: the middle of travel)
  *   X = record LEFT 90 (points out the robot's left side)
- *   B = record RIGHT 90 (points out the robot's right side)
- *   Y = apply: sets CENTER_POSITION and DEG_PER_POSITION live, turret goes to 0 deg
- *   RB = check sweep 0, +90, -90, 180, 0 using the applied numbers
+ *   B = record RIGHT 90 (points out the robot's right side, 270 deg)
+ *   Y = apply: sets CENTER_POSITION and DEG_PER_POSITION live, turret goes to 180 deg (back)
+ *   RB = check sweep 180, 90, 270, 0, 180 using the applied numbers
  *   back = back to jogging
  * Then copy the two printed lines into Turret.java.
  */
@@ -32,14 +32,14 @@ public class TurretCalibration extends NextOpMode {
     private static final double FINE_STEP = 0.002;
     private static final double COARSE_STEP = 0.02;
     private static final double SWEEP_STEP_S = 1.5;
-    private static final double[] SWEEP_DEG = {0, 90, -90, 180, 0};
+    private static final double[] SWEEP_DEG = {180, 90, 270, 0, 180};
 
     private final Robot robot;
     private final RobotTelemetry tele;
     private final CommandGamepad pad;
 
     private double position = Turret.centerPosition();
-    private double forward = Double.NaN;
+    private double back = Double.NaN;
     private double left = Double.NaN;
     private double right = Double.NaN;
     private boolean applied = false;
@@ -56,7 +56,7 @@ public class TurretCalibration extends NextOpMode {
         pad = new CommandGamepad(gamepad1);
         pad.dpadLeft().onTrue(Commands.instant(() -> jogBy(-step())));
         pad.dpadRight().onTrue(Commands.instant(() -> jogBy(step())));
-        pad.a().onTrue(Commands.instant(() -> forward = position));
+        pad.a().onTrue(Commands.instant(() -> back = position));
         pad.x().onTrue(Commands.instant(() -> left = position));
         pad.b().onTrue(Commands.instant(() -> right = position));
         pad.y().onTrue(Commands.instant(this::apply));
@@ -69,21 +69,21 @@ public class TurretCalibration extends NextOpMode {
     }
 
     private boolean allRecorded() {
-        return !Double.isNaN(forward) && !Double.isNaN(left) && !Double.isNaN(right) && left != right;
+        return !Double.isNaN(back) &&!Double.isNaN(left) && !Double.isNaN(right) && left != right;
     }
 
     private double degPerPosition() {
-        return 180.0 / (left - right);
+        return 180.0 / (right - left);
     }
 
     private void apply() {
         if (!allRecorded()) {
             return;
         }
-        Turret.setCalibration(forward, degPerPosition());
+        Turret.setCalibration(back, degPerPosition());
         applied = true;
         sweeping = false;
-        robot.turret.hold(0);
+        robot.turret.hold(Turret.CENTER_DEG);
     }
 
     private void startSweep() {
@@ -119,7 +119,7 @@ public class TurretCalibration extends NextOpMode {
             int index = (int) ((System.nanoTime() - sweepStartNanos) / 1e9 / SWEEP_STEP_S);
             if (index >= SWEEP_DEG.length) {
                 sweeping = false;
-                robot.turret.hold(0);
+                robot.turret.hold(Turret.CENTER_DEG);
             } else {
                 robot.turret.hold(SWEEP_DEG[index]);
             }
@@ -129,15 +129,15 @@ public class TurretCalibration extends NextOpMode {
             return;
         }
         tele.add("jog position", String.format("%.4f", position));
-        tele.add("forward / left / right", String.format("%.4f / %.4f / %.4f", forward, left, right));
+        tele.add("back / left / right", String.format("%.4f / %.4f / %.4f", back, left, right));
         if (allRecorded()) {
             double degPerPosition = degPerPosition();
-            double midpointErrorDeg = (forward - (left + right) / 2) * degPerPosition;
-            tele.add("paste", String.format(Locale.US, "public static double CENTER_POSITION = %.4f;", forward));
+            double midpointErrorDeg = (back - (left + right) / 2) * degPerPosition;
+            tele.add("paste", String.format(Locale.US, "public static double CENTER_POSITION = %.4f;", back));
             tele.add("paste", String.format(Locale.US, "public static double DEG_PER_POSITION = %.1f;", degPerPosition));
-            tele.add("forward mark vs left/right midpoint", String.format("%.1f deg (should be near 0)", midpointErrorDeg));
+            tele.add("back mark vs left/right midpoint", String.format("%.1f deg (should be near 0)", midpointErrorDeg));
             tele.add("range", String.format("%.0f to %.0f deg (CAD predicts about 403 total)",
-                    (0 - forward) * degPerPosition, (1 - forward) * degPerPosition));
+                    Turret.CENTER_DEG + (0 - back) * degPerPosition, Turret.CENTER_DEG + (1 - back) * degPerPosition));
         }
         tele.add("applied", applied ? String.format("yes: turret %.1f deg", robot.turret.commandedDeg()) : "no (Y)");
         tele.add("sweeping", sweeping);
