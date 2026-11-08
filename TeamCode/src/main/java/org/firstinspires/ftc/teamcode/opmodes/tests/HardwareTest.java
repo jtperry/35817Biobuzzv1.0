@@ -4,6 +4,7 @@ import com.pedropathing.ivy.commands.Commands;
 
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.field.Field;
+import org.firstinspires.ftc.teamcode.pedro.SharedOctoQuadLocalizer;
 import org.firstinspires.ftc.teamcode.shooter.Hood;
 import org.firstinspires.ftc.teamcode.shooter.Turret;
 import org.firstinspires.ftc.teamcode.util.MathUtil;
@@ -21,6 +22,8 @@ import dev.nextftc.robot.triggers.CommandGamepad;
  *   flower    X toggle
  *   turret    dpad left/right = position -/+   (hold LB = coarse), RB = which servos (left only / right only / both)
  *   hood      LT / RT = position -/+           (hold LB = coarse)
+ * During INIT it also reads the OctoQuad every loop and counts bad reads, so a bad read that starts with the reads
+ * (cable, OctoQuad, its power) shows before PLAY, and one caused by something PLAY switches on shows only after.
  */
 @NextTeleop(name = "Hardware Test", group = "test")
 public class HardwareTest extends NextOpMode {
@@ -42,6 +45,16 @@ public class HardwareTest extends NextOpMode {
     private int turretChoice = 0;
     private double turretPosition = Turret.centerPosition();
     private double hoodPosition = Hood.stowPosition();
+
+    private long initStartNanos = 0;
+    private int initReads = 0;
+    private int initBadReads = 0;
+    private double initFirstBadS = Double.NaN;
+    private double initLastBadS = Double.NaN;
+    private long playStartNanos = 0;
+    private int playBadReadsSeen = 0;
+    private double playFirstBadS = Double.NaN;
+    private double playLastBadS = Double.NaN;
 
     public HardwareTest(Robot robot) {
         super(robot, BulkReadHook.INSTANCE, robot.initCheck());
@@ -75,8 +88,44 @@ public class HardwareTest extends NextOpMode {
         robot.turret.raw(() -> turretPosition, turretChoice != 1, turretChoice != 0);
     }
 
+    /** INIT loop: read the OctoQuad (nothing else does before PLAY) and count reads whose checksum fails. */
+    @Override
+    public void disabledPeriodic() {
+        SharedOctoQuadLocalizer localizer = robot.localizer();
+        if (localizer == null) {
+            return;
+        }
+        long now = System.nanoTime();
+        if (initStartNanos == 0) {
+            initStartNanos = now;
+        }
+        localizer.update();
+        initReads++;
+        if (!localizer.encoderData().crcOk) {
+            initBadReads++;
+            double t = (now - initStartNanos) / 1e9;
+            if (Double.isNaN(initFirstBadS)) {
+                initFirstBadS = t;
+            }
+            initLastBadS = t;
+        }
+
+        if (!tele.beginFrame()) {
+            return;
+        }
+        tele.add("OctoQuad INIT reads", String.format("%d reads, %d bad", initReads, initBadReads));
+        tele.add("INIT bad reads at", badTimes(initFirstBadS, initLastBadS) + " after INIT");
+        tele.line("Wait a few seconds, then PLAY and compare with the bad reads after PLAY.");
+        tele.endFrame();
+    }
+
+    private static String badTimes(double firstS, double lastS) {
+        return Double.isNaN(firstS) ? "none" : String.format("first %.2f s, last %.2f s", firstS, lastS);
+    }
+
     @Override
     public void start() {
+        playStartNanos = System.nanoTime();
         robot.reset();
         applyTurretChoice();
         robot.hood.raw(() -> hoodPosition);
@@ -88,6 +137,16 @@ public class HardwareTest extends NextOpMode {
         double power1 = motorChoice == 1 ? 0 : flywheelPower;
         double power2 = motorChoice == 0 ? 0 : flywheelPower;
         robot.flywheel.raw(power1, power2);
+
+        int badReads = robot.flywheel.badReads();
+        if (badReads > playBadReadsSeen) {
+            double t = (System.nanoTime() - playStartNanos) / 1e9;
+            if (Double.isNaN(playFirstBadS)) {
+                playFirstBadS = t;
+            }
+            playLastBadS = t;
+            playBadReadsSeen = badReads;
+        }
 
         if (!tele.beginFrame()) {
             return;
@@ -103,7 +162,8 @@ public class HardwareTest extends NextOpMode {
         tele.add("turret", String.format("position %.4f = %.1f deg (current calibration), %s",
                 turretPosition, Turret.degreesAt(turretPosition), TURRET_CHOICES[turretChoice]));
         tele.add("hood", String.format("position %.4f", hoodPosition));
-        tele.add("OctoQuad bad reads", robot.flywheel.badReads());
+        tele.add("OctoQuad bad reads", String.format("after PLAY %d (%s after PLAY); in INIT %d of %d",
+                badReads, badTimes(playFirstBadS, playLastBadS), initBadReads, initReads));
         tele.line("Flywheel check: motor 1 alone and motor 2 alone at +0.2 must BOTH show positive RPM.");
         tele.endFrame();
     }

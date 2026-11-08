@@ -53,6 +53,7 @@ public class Robot implements NextRobot {
             new HashSet<Mechanism>(Arrays.asList(flywheel, turret, hood, intake, flower)));
 
     private Follower follower;
+    private SharedOctoQuadLocalizer localizer;
     private Alliance alliance = Alliance.BLUE;
     private HiveCell cell = HiveCell.A;
     private int restartSlot = 0;
@@ -116,7 +117,8 @@ public class Robot implements NextRobot {
     /** Package-private so a test can build a Robot without hardware. */
     void buildFollower(HardwareMap hardwareMap, Pose startPose) {
         LimitedMecanum.maxPower = 1.0;
-        SharedOctoQuadLocalizer localizer = new SharedOctoQuadLocalizer(hardwareMap, Constants.localizerConfig);
+        localizer = null;
+        localizer = new SharedOctoQuadLocalizer(hardwareMap, Constants.localizerConfig);
         follower = Constants.create(hardwareMap, localizer);
         flywheel.useOctoQuad(localizer);
         follower.setPose(startPose);
@@ -226,6 +228,11 @@ public class Robot implements NextRobot {
         return turret.settled() && hood.settled();
     }
 
+
+    /** This OpMode's OctoQuad localizer (null if INIT failed). For tests that read it directly. */
+    public SharedOctoQuadLocalizer localizer() {
+        return localizer;
+    }
 
     public Follower follower() {
         return follower;
