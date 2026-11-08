@@ -100,6 +100,7 @@ public class HardwareTest extends NextOpMode {
             initStartNanos = now;
         }
         localizer.update();
+        robot.logInit("hwtest-init");
         initReads++;
         if (!localizer.encoderData().crcOk) {
             initBadReads++;

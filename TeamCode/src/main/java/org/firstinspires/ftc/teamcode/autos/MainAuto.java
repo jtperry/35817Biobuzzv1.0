@@ -65,6 +65,13 @@ public abstract class MainAuto extends NextOpMode {
         tele.add("alliance / cell", alliance + " / " + robot.cell());
         tele.add("pose", String.format("%.1f, %.1f, %.1f deg",
                 pose.x(), pose.y(), MathUtil.wrapDegrees(Math.toDegrees(pose.heading()))));
+        org.firstinspires.ftc.teamcode.pedro.SharedOctoQuadLocalizer localizer = robot.localizer();
+        if (localizer != null) {
+            tele.add("odo status", String.format(java.util.Locale.US, "%s | crc:%s | bad:%d",
+                    localizer.lastStatus(),
+                    localizer.localizerData().isDataValid() ? "OK" : "ERR",
+                    localizer.badLocalizerReads()));
+        }
         tele.detail("ready to shoot", robot.readyToShoot());
         tele.detail("flywheel", String.format("%.0f / %.0f RPM", robot.flywheel.rpm(), robot.flywheel.targetRpm()));
         FieldDrawing.robot(pose);

@@ -18,7 +18,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 @Configurable
 public class SharedOctoQuadLocalizer implements Localizer {
     /** Longest wait for RUNNING after a reset (IMU warm-up and calibration); raise it in Panels, then INIT again. */
-    public static double RUNNING_TIMEOUT_MS = 2000;
+    public static double RUNNING_TIMEOUT_MS = 7000;
     /** Pause between status reads while waiting. */
     private static final long STATUS_POLL_MS = 10;
 
@@ -28,6 +28,14 @@ public class SharedOctoQuadLocalizer implements Localizer {
     private final DistanceUnit globalDistanceUnit;
 
     private MotionState motionState;
+
+    private long totalReads = 0;
+    private long badLocalizerReads = 0;
+    private long badEncoderReads = 0;
+    private int consecutiveBadReads = 0;
+    private int maxConsecutiveBadReads = 0;
+    private LocalizerStatus lastStatus = LocalizerStatus.NOT_RUNNING;
+    private long lastReadTimeNanos = 0;
 
     public SharedOctoQuadLocalizer(HardwareMap hardwareMap, OctoQuadConfig config) {
         octoQuad = hardwareMap.get(OctoQuad.class, config.name.get());
@@ -101,9 +109,30 @@ public class SharedOctoQuadLocalizer implements Localizer {
 
     @Override
     public void update() {
+        totalReads++;
+        lastReadTimeNanos = System.nanoTime();
         octoQuad.readLocalizerDataAndAllEncoderData(localizer, encoders);
 
-        if (!localizer.isDataValid()) {
+        lastStatus = localizer.localizerStatus;
+        boolean locValid = localizer.isDataValid();
+        boolean encValid = encoders.crcOk;
+
+        if (!locValid) {
+            badLocalizerReads++;
+        }
+        if (!encValid) {
+            badEncoderReads++;
+        }
+        if (!locValid || !encValid) {
+            consecutiveBadReads++;
+            if (consecutiveBadReads > maxConsecutiveBadReads) {
+                maxConsecutiveBadReads = consecutiveBadReads;
+            }
+        } else {
+            consecutiveBadReads = 0;
+        }
+
+        if (!locValid) {
             return;
         }
 
@@ -122,9 +151,42 @@ public class SharedOctoQuadLocalizer implements Localizer {
         motionState = MotionState.ofVelocity(pose, velocity);
     }
 
+    /** Localizer data from last update(). */
+    public LocalizerDataBlock localizerData() {
+        return localizer;
+    }
+
     /** Encoder data from last update(). Check crcOk before use. */
     public EncoderDataBlock encoderData() {
         return encoders;
+    }
+
+    public long totalReads() {
+        return totalReads;
+    }
+
+    public long badLocalizerReads() {
+        return badLocalizerReads;
+    }
+
+    public long badEncoderReads() {
+        return badEncoderReads;
+    }
+
+    public int consecutiveBadReads() {
+        return consecutiveBadReads;
+    }
+
+    public int maxConsecutiveBadReads() {
+        return maxConsecutiveBadReads;
+    }
+
+    public LocalizerStatus lastStatus() {
+        return lastStatus;
+    }
+
+    public long lastReadTimeNanos() {
+        return lastReadTimeNanos;
     }
 
     @Override

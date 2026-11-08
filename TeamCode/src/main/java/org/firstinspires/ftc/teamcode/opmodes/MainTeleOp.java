@@ -100,6 +100,7 @@ public class MainTeleOp extends NextOpMode {
         if (!tele.beginFrame()) {
             return;
         }
+        robot.logInit("teleop-init");
         if (fromAuto) {
             tele.add("alliance", robot.alliance() + "   (from auto)");
             tele.add("start pose", "where auto ended");
@@ -161,6 +162,16 @@ public class MainTeleOp extends NextOpMode {
         tele.detail("velocity x / y (in/s)", String.format("%.1f / %.1f", velocity.vx, velocity.vy));
         tele.detail("release speed (in/s)", String.format("%.1f", shot.releaseSpeed));
         tele.detail("battery (V)", String.format("%.2f", robot.battery.volts()));
+        SharedOctoQuadLocalizer localizer = robot.localizer();
+        if (localizer != null) {
+            tele.add("odo status", String.format(java.util.Locale.US, "%s | crc:%s | bad:%d (consec %d)",
+                    localizer.lastStatus(),
+                    localizer.localizerData().isDataValid() ? "OK" : "ERR",
+                    localizer.badLocalizerReads(),
+                    localizer.consecutiveBadReads()));
+        } else {
+            tele.add("odo status", "NULL (INIT failed)");
+        }
         tele.detail("OctoQuad bad reads", robot.flywheel.badReads());
         tele.detail("flower", robot.flower.isDeployed() ? "deployed" : "stowed");
         tele.detail("restart slot", robot.restartSlot() + " " + Field.RESTART_SLOT_NAMES[robot.restartSlot()]);

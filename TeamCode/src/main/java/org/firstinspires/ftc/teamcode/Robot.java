@@ -21,6 +21,7 @@ import org.firstinspires.ftc.teamcode.shooter.ShotSolver;
 import org.firstinspires.ftc.teamcode.shooter.ShotTable;
 import org.firstinspires.ftc.teamcode.shooter.Turret;
 import org.firstinspires.ftc.teamcode.util.Battery;
+import org.firstinspires.ftc.teamcode.util.OdometryDebugLog;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -59,6 +60,7 @@ public class Robot implements NextRobot {
     private int restartSlot = 0;
     private final AutoHandoff handoff = new AutoHandoff();
     private long lastSolveNanos = 0;
+    private OdometryDebugLog odoLog;
 
     /**
      * The first INIT error of this OpMode, thrown by initCheck() once the constructor is done. NextFTC builds the
@@ -73,6 +75,13 @@ public class Robot implements NextRobot {
                 throw initError;
             }
         }
+
+        @Override
+        public void afterEnd() {
+            if (odoLog != null) {
+                odoLog.close();
+            }
+        }
     };
 
 
@@ -83,6 +92,10 @@ public class Robot implements NextRobot {
      */
     public void bindHardware(HardwareMap hardwareMap) {
         initError = null;
+        if (odoLog != null) {
+            odoLog.close();
+        }
+        odoLog = new OdometryDebugLog();
         NextMotor.Companion.getMotorEventLoop().clear();
         flywheel.bindMotors();
         intake.bindMotors();
@@ -185,12 +198,30 @@ public class Robot implements NextRobot {
         handoff.record(follower.pose());
         battery.update();
         solveShot();
+        if (odoLog != null) {
+            odoLog.log(this, "ACTIVE");
+        }
     }
 
     /** Init loop: mechanism periodic does not run before start, so point the turret here. */
     public void aimInInit() {
         solveShot();
         turret.applyTrackingNow();
+        if (odoLog != null) {
+            odoLog.log(this, "INIT");
+        }
+    }
+
+    /** Log an INIT sample with an optional note (e.g. from disabledPeriodic). */
+    public void logInit(String note) {
+        if (odoLog != null) {
+            odoLog.log(this, "INIT", note);
+        }
+    }
+
+    /** The odometry debug logger recording to FIRST/odometry-latest.csv. */
+    public OdometryDebugLog odoLog() {
+        return odoLog;
     }
 
     private void solveShot() {

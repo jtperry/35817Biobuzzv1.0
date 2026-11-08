@@ -52,11 +52,19 @@ public class DriveTest extends NextOpMode {
 
     @Override
     public void disabledPeriodic() {
+        robot.logInit("drive-test-init");
         if (!tele.beginFrame()) {
             return;
         }
         tele.line("Drive Test DRIVES the robot after PLAY. Clear the area.");
         tele.add("alliance", robot.alliance());
+        org.firstinspires.ftc.teamcode.pedro.SharedOctoQuadLocalizer localizer = robot.localizer();
+        if (localizer != null) {
+            tele.add("odo status", String.format(Locale.US, "%s | crc:%s | bad:%d",
+                    localizer.lastStatus(),
+                    localizer.localizerData().isDataValid() ? "OK" : "ERR",
+                    localizer.badLocalizerReads()));
+        }
         tele.endFrame();
     }
 
@@ -93,6 +101,14 @@ public class DriveTest extends NextOpMode {
                 pose.x(), pose.y(), MathUtil.wrapDegrees(Math.toDegrees(heading))));
         tele.add("velocity, field (in/s)", String.format(Locale.US, "vx %.1f  vy %.1f", velocity.vx, velocity.vy));
         tele.add("velocity, robot (in/s)", String.format(Locale.US, "forward %.1f  left %.1f", forward, left));
+        org.firstinspires.ftc.teamcode.pedro.SharedOctoQuadLocalizer localizer = robot.localizer();
+        if (localizer != null) {
+            tele.add("odo status", String.format(Locale.US, "%s | crc:%s | bad:%d (consec %d)",
+                    localizer.lastStatus(),
+                    localizer.localizerData().isDataValid() ? "OK" : "ERR",
+                    localizer.badLocalizerReads(),
+                    localizer.consecutiveBadReads()));
+        }
         tele.add("drive scale", String.format(Locale.US, "%.2f", MathUtil.clamp(DRIVE_SCALE, 0, 1)));
         tele.line("Velocity check: drive toward the far wall (+y): vy must be > 0 at any heading.");
         tele.line("Pod spin test: press Y, spin in place 5 times: x and y stay within about 0.25 in.");
