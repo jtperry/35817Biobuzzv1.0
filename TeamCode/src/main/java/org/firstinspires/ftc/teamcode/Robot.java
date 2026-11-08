@@ -87,7 +87,6 @@ public class Robot implements NextRobot {
         intake.bindMotors();
         turret.bindServos();
         hood.bindServos();
-        intake.bindServos();
         flower.bindServos();
         battery.bind(hardwareMap);
     }

@@ -1,8 +1,6 @@
 package org.firstinspires.ftc.teamcode.intake;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.Scheduler;
@@ -17,11 +15,7 @@ public class IntakeTest {
     private static final double EPS = 1e-9;
 
     private Intake intake;
-    private double gatePosition;
 
-    private double savedGateOpen;
-    private double savedGateClosed;
-    private double savedGateOpenDelay;
     private double savedStage1Sign;
     private double savedStage2Sign;
     private double savedStage1Intake;
@@ -32,9 +26,6 @@ public class IntakeTest {
 
     @Before
     public void setUp() {
-        savedGateOpen = Intake.GATE_OPEN_POSITION;
-        savedGateClosed = Intake.GATE_CLOSED_POSITION;
-        savedGateOpenDelay = Intake.GATE_OPEN_DELAY_MS;
         savedStage1Sign = Intake.STAGE1_SIGN;
         savedStage2Sign = Intake.STAGE2_SIGN;
         savedStage1Intake = Intake.STAGE1_INTAKE_POWER;
@@ -42,9 +33,6 @@ public class IntakeTest {
         savedStage1Feed = Intake.STAGE1_FEED_POWER;
         savedStage2Feed = Intake.STAGE2_FEED_POWER;
         savedEject = Intake.EJECT_POWER;
-        Intake.GATE_OPEN_POSITION = 0.42;
-        Intake.GATE_CLOSED_POSITION = 0.23;
-        Intake.GATE_OPEN_DELAY_MS = 100;
         Intake.STAGE1_SIGN = -1.0;
         Intake.STAGE2_SIGN = 1.0;
         Intake.STAGE1_INTAKE_POWER = 1.0;
@@ -54,16 +42,11 @@ public class IntakeTest {
         Intake.EJECT_POWER = -1.0;
         Scheduler.reset();
         intake = new Intake();
-        gatePosition = Double.NaN;
-        intake.gateOutput = position -> gatePosition = position;
     }
 
     @After
     public void tearDown() {
         Scheduler.reset();
-        Intake.GATE_OPEN_POSITION = savedGateOpen;
-        Intake.GATE_CLOSED_POSITION = savedGateClosed;
-        Intake.GATE_OPEN_DELAY_MS = savedGateOpenDelay;
         Intake.STAGE1_SIGN = savedStage1Sign;
         Intake.STAGE2_SIGN = savedStage2Sign;
         Intake.STAGE1_INTAKE_POWER = savedStage1Intake;
@@ -73,119 +56,107 @@ public class IntakeTest {
         Intake.EJECT_POWER = savedEject;
     }
 
+    private void assertStages(double stage1, double stage2) {
+        assertEquals(stage1, intake.stage1Power(), EPS);
+        assertEquals(stage2, intake.stage2Power(), EPS);
+    }
+
+    private void assertFeeding() {
+        assertStages(Intake.STAGE1_FEED_POWER, Intake.STAGE2_FEED_POWER);
+    }
+
     private void startFeed() {
         intake.feed(() -> true).schedule();
         Scheduler.execute();
-        assertTrue(intake.isGateOpen());
-        assertEquals(Intake.GATE_OPEN_POSITION, gatePosition, EPS);
+        assertFeeding();
     }
 
     @Test
-    public void intakeOverridingAFeedClosesTheGate() {
+    public void feedPushesOnTheFirstLoopWithNoDelay() {
+        startFeed();
+    }
+
+    @Test
+    public void feedStopsTheStagesWhileNotFeeding() {
+        boolean[] feeding = {false};
+        intake.feed(() -> feeding[0]).schedule();
+        Scheduler.execute();
+        assertStages(0, 0);
+        feeding[0] = true;
+        Scheduler.execute();
+        assertFeeding();
+        feeding[0] = false;
+        Scheduler.execute();
+        assertStages(0, 0);
+    }
+
+    @Test
+    public void intakeRunsStageTwoBackwards() {
+        intake.intake().schedule();
+        Scheduler.execute();
+        assertStages(1.0, -0.5);
+    }
+
+    @Test
+    public void intakeOverridingAFeedRunsTheIntake() {
         startFeed();
         intake.intake().schedule();
         Scheduler.execute();
-        assertFalse(intake.isGateOpen());
-        assertEquals(Intake.GATE_CLOSED_POSITION, gatePosition, EPS);
+        assertStages(Intake.STAGE1_INTAKE_POWER, Intake.STAGE2_INTAKE_POWER);
     }
 
     @Test
-    public void ejectOverridingAFeedClosesTheGate() {
+    public void ejectOverridingAFeedRunsTheEject() {
         startFeed();
         intake.eject().schedule();
         Scheduler.execute();
-        assertFalse(intake.isGateOpen());
-        assertEquals(Intake.GATE_CLOSED_POSITION, gatePosition, EPS);
+        assertStages(Intake.EJECT_POWER, Intake.EJECT_POWER);
     }
 
     @Test
-    public void cancellingAFeedClosesTheGate() {
+    public void cancellingAFeedStopsTheStages() {
         Command feed = intake.feed(() -> true);
         feed.schedule();
         Scheduler.execute();
-        assertTrue(intake.isGateOpen());
+        assertFeeding();
         feed.cancel();
-        assertFalse(intake.isGateOpen());
-        assertEquals(Intake.GATE_CLOSED_POSITION, gatePosition, EPS);
+        assertStages(0, 0);
     }
 
     /** Same shape as ShootCommands.whileHeld: a step, then the feed. */
     private Command heldFeed() {
         Command held = Commands.instant(() -> { }).then(intake.feed(() -> true));
         held.schedule();
-        for (int i = 0; i < 3 && !intake.isGateOpen(); i++) {
+        for (int i = 0; i < 3 && intake.stage1Power() == 0; i++) {
             Scheduler.execute();
         }
-        assertTrue(intake.isGateOpen());
+        assertFeeding();
         return held;
     }
 
     @Test
-    public void intakeOverridingAHeldFeedSequenceClosesTheGate() {
+    public void cancellingAHeldFeedSequenceStopsTheStages() {
+        Command held = heldFeed();
+        held.cancel();
+        assertStages(0, 0);
+    }
+
+    @Test
+    public void intakeOverridingAHeldFeedSequenceRunsTheIntake() {
         heldFeed();
         intake.intake().schedule();
         Scheduler.execute();
-        assertFalse(intake.isGateOpen());
-        assertEquals(Intake.GATE_CLOSED_POSITION, gatePosition, EPS);
+        assertStages(Intake.STAGE1_INTAKE_POWER, Intake.STAGE2_INTAKE_POWER);
     }
 
     @Test
-    public void cancellingAHeldFeedSequenceClosesTheGate() {
-        Command held = heldFeed();
-        held.cancel();
-        assertFalse(intake.isGateOpen());
-        assertEquals(Intake.GATE_CLOSED_POSITION, gatePosition, EPS);
-    }
-
-    @Test
-    public void feedEndedByUntilClosesTheGate() {
+    public void feedEndedByUntilStopsTheStages() {
         boolean[] done = {false};
         intake.feed(() -> true).until(() -> done[0]).schedule();
         Scheduler.execute();
-        assertTrue(intake.isGateOpen());
+        assertFeeding();
         done[0] = true;
         Scheduler.execute();
-        assertFalse(intake.isGateOpen());
-        assertEquals(Intake.GATE_CLOSED_POSITION, gatePosition, EPS);
-    }
-
-    @Test
-    public void gateRawWritesTheSuppliedPositionEveryLoop() {
-        double[] position = {0.3};
-        intake.gateRaw(() -> position[0]).schedule();
-        Scheduler.execute();
-        assertEquals(0.3, gatePosition, EPS);
-        assertFalse(intake.isGateOpen());
-        position[0] = 0.35;
-        Scheduler.execute();
-        assertEquals(0.35, gatePosition, EPS);
-        assertFalse(intake.isGateOpen());
-    }
-
-    @Test
-    public void gateRawClampsToTheServoRange() {
-        intake.gateRaw(() -> 1.5).schedule();
-        Scheduler.execute();
-        assertEquals(1.0, gatePosition, EPS);
-        intake.gateRaw(() -> -0.5).schedule();
-        Scheduler.execute();
-        assertEquals(0.0, gatePosition, EPS);
-    }
-
-    @Test
-    public void gateRawReplacesAFeed() {
-        startFeed();
-        intake.gateRaw(() -> 0.3).schedule();
-        Scheduler.execute();
-        assertFalse(intake.isGateOpen());
-        assertEquals(0.3, gatePosition, EPS);
-    }
-
-    @Test
-    public void gatePositionGettersReadTheTunables() {
-        Intake.GATE_OPEN_POSITION = 0.5;
-        Intake.GATE_CLOSED_POSITION = 0.1;
-        assertEquals(0.5, Intake.gateOpenPosition(), EPS);
-        assertEquals(0.1, Intake.gateClosedPosition(), EPS);
+        assertStages(0, 0);
     }
 }

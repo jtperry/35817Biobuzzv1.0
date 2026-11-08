@@ -32,7 +32,7 @@ public final class ShootCommands {
     private ShootCommands() {
     }
 
-    /** One volley, then gate closed and stages off (auto). */
+    /** One volley, then stages off (auto). */
     public static Command volley(Robot robot) {
         FeedGate gate = new FeedGate(robot);
         return Commands.instant(gate::reset)
@@ -41,8 +41,7 @@ public final class ShootCommands {
     }
 
     /**
-     * Feed while held. Bind with whileTrue(...): release cancels it, and the feed's end handler closes the gate and
-     * stops the stages.
+     * Feed while held. Bind with whileTrue(...): release cancels it, and the feed's end handler stops the stages.
      */
     public static Command whileHeld(Robot robot) {
         FeedGate gate = new FeedGate(robot);

@@ -112,7 +112,7 @@ public final class BiobuzzSim {
         hardwareMap.register(Flywheel.MOTOR_2, new SimMotor());
         hardwareMap.register(Intake.STAGE1, new SimMotor());
         hardwareMap.register(Intake.STAGE2, new SimMotor());
-        for (String servo : new String[] {Intake.GATE, Hood.SERVO, Turret.LEFT_SERVO, Turret.RIGHT_SERVO,
+        for (String servo : new String[] {Hood.SERVO, Turret.LEFT_SERVO, Turret.RIGHT_SERVO,
                 FlowerArm.LEFT_SERVO, FlowerArm.RIGHT_SERVO}) {
             hardwareMap.register(servo, new SimServo());
         }

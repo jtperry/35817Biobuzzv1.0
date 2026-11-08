@@ -162,8 +162,7 @@ public class MainTeleOp extends NextOpMode {
         tele.detail("release speed (in/s)", String.format("%.1f", shot.releaseSpeed));
         tele.detail("battery (V)", String.format("%.2f", robot.battery.volts()));
         tele.detail("OctoQuad bad reads", robot.flywheel.badReads());
-        tele.detail("gate / flower", (robot.intake.isGateOpen() ? "open" : "closed") + " / "
-                + (robot.flower.isDeployed() ? "deployed" : "stowed"));
+        tele.detail("flower", robot.flower.isDeployed() ? "deployed" : "stowed");
         tele.detail("restart slot", robot.restartSlot() + " " + Field.RESTART_SLOT_NAMES[robot.restartSlot()]);
         FieldDrawing.robot(pose);
         tele.endFrame();

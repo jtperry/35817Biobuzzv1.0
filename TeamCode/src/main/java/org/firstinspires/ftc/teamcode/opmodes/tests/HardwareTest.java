@@ -18,7 +18,7 @@ import dev.nextftc.robot.triggers.CommandGamepad;
  * Raw control of every motor and servo for bring-up. Never drives. Gamepad 1:
  *   flywheel  dpad up/down = power +-0.05, Y = which motors (motor 1 only / motor 2 only / both), B = power 0
  *   stages    left stick Y = stage 1, right stick Y = stage 2 (push up = toward the shooter)
- *   gate      A toggle          flower   X toggle
+ *   flower    X toggle
  *   turret    dpad left/right = position -/+   (hold LB = coarse), RB = which servos (left only / right only / both)
  *   hood      LT / RT = position -/+           (hold LB = coarse)
  */
@@ -40,7 +40,6 @@ public class HardwareTest extends NextOpMode {
     private int motorChoice = 0;
     /** Index into TURRET_CHOICES. Starts with the left servo alone so the two cannot fight. */
     private int turretChoice = 0;
-    private boolean gateOpen = false;
     private double turretPosition = Turret.centerPosition();
     private double hoodPosition = Hood.stowPosition();
 
@@ -56,7 +55,6 @@ public class HardwareTest extends NextOpMode {
         pad.dpadDown().onTrue(Commands.instant(() -> flywheelPower = MathUtil.clamp(flywheelPower - POWER_STEP, -1, 1)));
         pad.b().onTrue(Commands.instant(() -> flywheelPower = 0));
         pad.y().onTrue(Commands.instant(() -> motorChoice = (motorChoice + 1) % MOTOR_CHOICES.length));
-        pad.a().onTrue(Commands.instant(() -> gateOpen = !gateOpen));
         pad.x().onTrue(Commands.instant(robot.flower::toggle));
         pad.dpadLeft().onTrue(Commands.instant(() -> turretPosition = MathUtil.clamp(turretPosition - step(), 0, 1)));
         pad.dpadRight().onTrue(Commands.instant(() -> turretPosition = MathUtil.clamp(turretPosition + step(), 0, 1)));
@@ -82,7 +80,7 @@ public class HardwareTest extends NextOpMode {
         robot.reset();
         applyTurretChoice();
         robot.hood.raw(() -> hoodPosition);
-        robot.intake.manual(() -> -gamepad1.left_stick_y, () -> -gamepad1.right_stick_y, () -> gateOpen).schedule();
+        robot.intake.manual(() -> -gamepad1.left_stick_y, () -> -gamepad1.right_stick_y).schedule();
     }
 
     @Override
@@ -101,7 +99,6 @@ public class HardwareTest extends NextOpMode {
         tele.add("stages", String.format("1: %.2f (%.2f A)   2: %.2f (%.2f A)",
                 -gamepad1.left_stick_y, robot.intake.stage1Amps(),
                 -gamepad1.right_stick_y, robot.intake.stage2Amps()));
-        tele.add("gate", gateOpen ? "open" : "closed");
         tele.add("flower", robot.flower.isDeployed() ? "deployed" : "stowed");
         tele.add("turret", String.format("position %.4f = %.1f deg (current calibration), %s",
                 turretPosition, Turret.degreesAt(turretPosition), TURRET_CHOICES[turretChoice]));

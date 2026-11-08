@@ -17,7 +17,7 @@ public final class ShotSolver {
 
     public static boolean SHOOT_ON_MOVE = true;
 
-    /** Aim to ball leaving the robot, seconds (gate delay + ball travel). */
+    /** Aim to ball leaving the robot, seconds (feed delay + ball travel). */
     public static double RELEASE_LATENCY_S = 0.15;
 
     /** Lead multiplier. Near 1.0 once flight times are measured. */

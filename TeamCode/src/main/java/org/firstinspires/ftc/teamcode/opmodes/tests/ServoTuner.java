@@ -5,7 +5,6 @@ import com.pedropathing.ivy.commands.Commands;
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.field.Field;
 import org.firstinspires.ftc.teamcode.intake.FlowerArm;
-import org.firstinspires.ftc.teamcode.intake.Intake;
 import org.firstinspires.ftc.teamcode.shooter.Hood;
 import org.firstinspires.ftc.teamcode.util.MathUtil;
 import org.firstinspires.ftc.teamcode.util.RobotTelemetry;
@@ -18,42 +17,36 @@ import dev.nextftc.robot.opmode.NextTeleop;
 import dev.nextftc.robot.triggers.CommandGamepad;
 
 /**
- * Finds the gate, flower and hood positions (spec 11). Never drives. All three servos hold their jog positions.
+ * Finds the flower and hood positions (spec 11). Never drives. Both servos hold their jog positions.
  * Gamepad 1:
- *   Y = next servo (gate / flower / hood)
+ *   Y = next servo (flower / hood)
  *   dpad left/right = jog the selected servo (hold LB = coarse)
  *   RB = flower servos (left only / right only / both)
- *   gate    A = mark open      B = mark closed
  *   flower  A = mark deployed  B = mark stowed
  *   hood    A = mark min       B = mark max       X = mark stow
- * Then copy the printed lines into Intake.java, FlowerArm.java and Hood.java.
+ * Then copy the printed lines into FlowerArm.java and Hood.java.
  */
 @NextTeleop(name = "Servo Tuner", group = "test")
 public class ServoTuner extends NextOpMode {
 
     private static final double FINE_STEP = 0.002;
     private static final double COARSE_STEP = 0.02;
-    private static final int GATE = 0;
-    private static final int FLOWER = 1;
-    private static final int HOOD = 2;
-    private static final String[] SERVOS = {"gate", "flower", "hood"};
-    private static final String[] MARKS = {
-            "A = open, B = closed", "A = deployed, B = stowed", "A = min, B = max, X = stow"};
+    private static final int FLOWER = 0;
+    private static final int HOOD = 1;
+    private static final String[] SERVOS = {"flower", "hood"};
+    private static final String[] MARKS = {"A = deployed, B = stowed", "A = min, B = max, X = stow"};
     private static final String[] FLOWER_CHOICES = {"left only", "right only", "both"};
 
     private final Robot robot;
     private final RobotTelemetry tele;
     private final CommandGamepad pad;
 
-    private int selected = GATE;
+    private int selected = FLOWER;
     /** Index into FLOWER_CHOICES. Starts with the left servo alone so the two cannot fight. */
     private int flowerChoice = 0;
-    private double gatePosition = Intake.gateClosedPosition();
     private double flowerPosition = FlowerArm.stowedPosition();
     private double hoodPosition = Hood.stowPosition();
 
-    private double gateOpen = Double.NaN;
-    private double gateClosed = Double.NaN;
     private double flowerDeployed = Double.NaN;
     private double flowerStowed = Double.NaN;
     private double hoodMin = Double.NaN;
@@ -89,9 +82,7 @@ public class ServoTuner extends NextOpMode {
     }
 
     private void jog(double delta) {
-        if (selected == GATE) {
-            gatePosition = MathUtil.clamp(gatePosition + delta, 0, 1);
-        } else if (selected == FLOWER) {
+        if (selected == FLOWER) {
             flowerPosition = MathUtil.clamp(flowerPosition + delta, 0, 1);
         } else {
             hoodPosition = MathUtil.clamp(hoodPosition + delta, 0, 1);
@@ -99,9 +90,7 @@ public class ServoTuner extends NextOpMode {
     }
 
     private void markA() {
-        if (selected == GATE) {
-            gateOpen = gatePosition;
-        } else if (selected == FLOWER) {
+        if (selected == FLOWER) {
             flowerDeployed = flowerPosition;
         } else {
             hoodMin = hoodPosition;
@@ -109,9 +98,7 @@ public class ServoTuner extends NextOpMode {
     }
 
     private void markB() {
-        if (selected == GATE) {
-            gateClosed = gatePosition;
-        } else if (selected == FLOWER) {
+        if (selected == FLOWER) {
             flowerStowed = flowerPosition;
         } else {
             hoodMax = hoodPosition;
@@ -129,7 +116,6 @@ public class ServoTuner extends NextOpMode {
         robot.turret.hold(0);
         robot.hood.raw(() -> hoodPosition);
         applyFlowerChoice();
-        robot.intake.gateRaw(() -> gatePosition).schedule();
     }
 
     @Override
@@ -139,11 +125,8 @@ public class ServoTuner extends NextOpMode {
         }
         tele.add("selected", SERVOS[selected] + "   (Y = next)");
         tele.add("marks", MARKS[selected]);
-        tele.add("gate", String.format("%.4f", gatePosition));
         tele.add("flower", String.format("%.4f   %s   (RB = change)", flowerPosition, FLOWER_CHOICES[flowerChoice]));
         tele.add("hood", String.format("%.4f", hoodPosition));
-        paste("Intake.java", "GATE_OPEN_POSITION", gateOpen);
-        paste("Intake.java", "GATE_CLOSED_POSITION", gateClosed);
         paste("FlowerArm.java", "DEPLOYED_POSITION", flowerDeployed);
         paste("FlowerArm.java", "STOWED_POSITION", flowerStowed);
         pasteHood();
