@@ -20,6 +20,7 @@ import dev.nextftc.robot.triggers.CommandGamepad;
  * Finds the flower and hood positions (spec 11). Never drives. Both servos hold their jog positions.
  * Gamepad 1:
  *   Y = next servo (flower / hood)
+ *   left stick Y = move the selected servo: push up = higher position, farther = faster, release = hold (LB = fast)
  *   dpad left/right = jog the selected servo (hold LB = coarse)
  *   RB = flower servos (left only / right only / both)
  *   flower  A = mark deployed  B = mark stowed
@@ -31,6 +32,10 @@ public class ServoTuner extends NextOpMode {
 
     private static final double FINE_STEP = 0.002;
     private static final double COARSE_STEP = 0.02;
+    /** Left stick: position change per second at full push (slow and with LB held); squared, so small pushes are fine. */
+    private static final double STICK_RATE_PER_S = 0.1;
+    private static final double STICK_FAST_RATE_PER_S = 0.5;
+    private static final double STICK_DEADBAND = 0.05;
     private static final int FLOWER = 0;
     private static final int HOOD = 1;
     private static final String[] SERVOS = {"flower", "hood"};
@@ -52,6 +57,8 @@ public class ServoTuner extends NextOpMode {
     private double hoodMin = Double.NaN;
     private double hoodMax = Double.NaN;
     private double hoodStow = Double.NaN;
+
+    private long lastStickNanos = 0;
 
     public ServoTuner(Robot robot) {
         super(robot, BulkReadHook.INSTANCE, robot.initCheck());
@@ -118,12 +125,26 @@ public class ServoTuner extends NextOpMode {
         applyFlowerChoice();
     }
 
+    /** Left stick Y moves the selected servo at a speed set by how far it is pushed; released, the servo holds. */
+    private void moveWithStick() {
+        long now = System.nanoTime();
+        double dt = lastStickNanos == 0 ? 0 : Math.min((now - lastStickNanos) / 1e9, 0.1);
+        lastStickNanos = now;
+        double stick = -gamepad1.left_stick_y;
+        if (Math.abs(stick) < STICK_DEADBAND) {
+            return;
+        }
+        double rate = gamepad1.left_bumper ? STICK_FAST_RATE_PER_S : STICK_RATE_PER_S;
+        jog(stick * Math.abs(stick) * rate * dt);
+    }
+
     @Override
     public void periodic() {
+        moveWithStick();
         if (!tele.beginFrame()) {
             return;
         }
-        tele.add("selected", SERVOS[selected] + "   (Y = next)");
+        tele.add("selected", SERVOS[selected] + "   (Y = next, left stick or dpad = move)");
         tele.add("marks", MARKS[selected]);
         tele.add("flower", String.format("%.4f   %s   (RB = change)", flowerPosition, FLOWER_CHOICES[flowerChoice]));
         tele.add("hood", String.format("%.4f", hoodPosition));
